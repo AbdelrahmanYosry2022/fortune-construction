@@ -66,21 +66,21 @@ export function ProjectPortfolioFilters({
     const activeCategoryLabel = category === 'All' ? 'All sectors' : category
 
     return (
-        <div className="rounded-[28px] border border-slate-200 bg-white/90 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.07)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80 md:p-5">
-            <div className="grid gap-4">
-                <div className="grid gap-3 lg:grid-cols-[minmax(260px,420px)_1fr] lg:items-center">
-                    <label className="relative block min-w-0">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 md:p-5">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(330px,430px)] xl:items-stretch">
+                <div className="contents">
+                    <label className="relative block min-h-14 min-w-0">
                         <span className="sr-only">Search projects</span>
                         <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                         <input
                             value={searchQuery}
                             onChange={(event) => onSearchChange(event.target.value)}
                             placeholder="Search projects, locations, clients..."
-                            className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-teal-500"
+                            className="h-full min-h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm font-bold text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4 focus:ring-teal-500/10 dark:border-slate-800 dark:bg-slate-900 dark:text-white dark:focus:border-teal-500"
                         />
                     </label>
 
-                    <div className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
+                    <div className="flex min-h-14 min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/50">
                         <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Current View</div>
                             <div className="mt-1 truncate text-sm font-black text-slate-900 dark:text-white">
@@ -100,15 +100,15 @@ export function ProjectPortfolioFilters({
                     </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(330px,430px)] xl:items-start">
-                    <section className="min-w-0 rounded-[24px] border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+                <div className="contents">
+                    <section className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
                         <div className="mb-3 flex items-center justify-between gap-4 px-1">
                             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Project Type</span>
                             <span className="max-w-[55%] truncate rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-teal-700 shadow-sm dark:bg-slate-950">
                                 {activeCategoryLabel}
                             </span>
                         </div>
-                        <div className="portfolio-filter-scroll flex max-w-full gap-2 overflow-x-auto px-1 pb-5 pt-1">
+                        <div className="portfolio-filter-scroll flex flex-1 max-w-full items-center gap-2 overflow-x-auto px-1 pb-5 pt-1">
                             <CommandButton
                                 label="All Projects"
                                 icon={SlidersHorizontal}
@@ -127,14 +127,14 @@ export function ProjectPortfolioFilters({
                         </div>
                     </section>
 
-                    <section className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+                    <section className="flex flex-col rounded-2xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-900/50">
                         <div className="mb-3 flex items-center justify-between gap-4 px-1">
                             <span className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">Delivery Status</span>
                             <span className="rounded-full bg-white px-3 py-1 text-[10px] font-black uppercase tracking-wider text-teal-700 shadow-sm dark:bg-slate-950">
                                 {status === 'All' ? 'All' : status}
                             </span>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid flex-1 grid-cols-3 items-center gap-2">
                             {STATUS_FILTERS.map((item) => {
                                 const meta = STATUS_META[item]
                                 return (

@@ -31,15 +31,15 @@ export function ProjectCaseStudyCard({ project, index }: { project: ProjectRecor
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.45, delay: Math.min(index * 0.05, 0.25) }}
-            className="grid overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-[0_26px_80px_rgba(15,23,42,0.12)] dark:border-slate-800 dark:bg-slate-950 lg:grid-cols-[44%_1fr]"
+            className="grid h-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-[0_26px_80px_rgba(15,23,42,0.12)] dark:border-slate-800 dark:bg-slate-950 lg:grid-cols-[44%_1fr] 2xl:grid-cols-1"
         >
-            <Link to={`/projects/${project._id}`} className="relative block min-h-[260px] overflow-hidden bg-slate-100 lg:min-h-[340px]">
+            <Link to={`/projects/${project._id}`} className="relative block min-h-[260px] overflow-hidden bg-slate-100 lg:min-h-[340px] 2xl:min-h-[300px]">
                 <Image
                     src={project.coverImage}
                     alt={project.title}
                     fallbackSrc={projectVisualFallback(project.category)}
                     fallbackClassName="bg-slate-900 object-cover p-0"
-                    className="h-full min-h-[260px] w-full object-cover transition-transform duration-700 hover:scale-105 lg:min-h-[340px]"
+                    className="h-full min-h-[260px] w-full object-cover transition-transform duration-700 hover:scale-105 lg:min-h-[340px] 2xl:min-h-[300px]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/45 via-transparent to-transparent" />
                 <span className="absolute left-5 top-5 rounded bg-white/95 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-900 shadow-sm">
@@ -47,7 +47,7 @@ export function ProjectCaseStudyCard({ project, index }: { project: ProjectRecor
                 </span>
             </Link>
 
-            <div className="flex min-h-[340px] flex-col p-7 lg:p-8">
+            <div className="flex min-h-[340px] flex-1 flex-col p-7 lg:p-8">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h3 className="text-2xl font-display font-bold tracking-tight text-slate-950 dark:text-white md:text-3xl">

@@ -21,7 +21,6 @@ export function PageHero({ title, description, imageSrc, imageAlt }: PageHeroPro
                     className="h-full w-full object-cover object-center"
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-slate-950/80 via-slate-950/55 to-slate-950/86" />
-                <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-white via-white/60 to-transparent dark:from-slate-950 dark:via-slate-950/70" />
             </div>
             <div className="relative z-10 mx-auto mt-16 max-w-5xl px-6 text-center">
                 <h1 className="mb-6 text-4xl font-bold leading-tight text-white md:text-6xl">

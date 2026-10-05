@@ -99,7 +99,7 @@ export default function Projects() {
                     onCategoryChange={setActiveCategory}
                 />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10">
+                <div className="grid auto-rows-fr grid-cols-1 gap-8 md:grid-cols-2 md:gap-10 lg:grid-cols-3">
                     {filtered.map((project) => (
                         <ProjectCard
                             key={project.id}

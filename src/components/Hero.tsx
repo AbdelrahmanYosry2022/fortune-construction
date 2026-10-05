@@ -80,7 +80,7 @@ export default function Hero() {
                     transition={{ duration: 0.8 }}
                     className="mb-10"
                 >
-                    <Badge variant="teal" className="gap-3 px-4 py-2 border-teal-500/20 shadow-none">
+                    <Badge variant="teal" className="gap-3 border border-teal-300/60 bg-slate-950/75 px-5 py-2.5 text-teal-50 shadow-lg shadow-slate-950/30 backdrop-blur-md">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>

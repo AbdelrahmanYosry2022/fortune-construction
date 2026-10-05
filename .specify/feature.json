@@ -1,3 +1,7 @@
 {
+<<<<<<< ours
   "feature_directory": "specs/011-audit-vulnerability-fix"
+=======
+  "feature_directory": "specs/20261005-195600-dashboard-content-e2e"
+>>>>>>> theirs
 }

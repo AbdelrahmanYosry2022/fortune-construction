@@ -31,6 +31,23 @@ const requiredString = (message: string, min = 1, max?: number) => {
   return schema
 }
 
+const emptyToUndefined = (value: unknown) => value === '' || value === null ? undefined : value
+const optionalDate = z.preprocess(emptyToUndefined, z.coerce.date().optional())
+const optionalPositiveNumber = (label: string) =>
+  z.preprocess(
+    emptyToUndefined,
+    z.coerce.number({ invalid_type_error: `${label} must be a number` })
+      .positive(`${label} must be greater than 0`)
+      .max(999_999_999_999, `${label} is too large`),
+  ).optional().or(z.literal(''))
+const optionalYear = z.preprocess(
+  emptyToUndefined,
+  z.coerce.number({ invalid_type_error: 'Year completed must be a number' })
+    .int('Year completed must be a whole year')
+    .min(1900, 'Year completed must be 1900 or later')
+    .max(new Date().getFullYear() + 20, 'Year completed is too far in the future'),
+).optional().or(z.literal(''))
+
 const email = z.string({ required_error: 'Email is required' }).email('Please enter a valid email address')
 const phone = z
   .string({ required_error: 'Phone number is required' })
@@ -48,12 +65,12 @@ export const projectSchema = z.object({
   status: z.enum(['Ongoing', 'Completed']).default('Ongoing'),
   location: requiredString('Location is required'),
   clientName: z.string().optional(),
-  projectValue: z.string().optional(),
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-  budget: z.coerce.number({ invalid_type_error: 'Budget must be a number' }).positive('Budget must be positive').optional().or(z.literal('')),
+  projectValue: optionalPositiveNumber('Project value'),
+  startDate: optionalDate,
+  endDate: optionalDate,
+  budget: optionalPositiveNumber('Budget'),
   duration: z.string().optional(),
-  yearCompleted: z.string().optional(),
+  yearCompleted: optionalYear,
   overview: z.string().optional(),
   scopeOfWork: z.array(z.string()).optional().default([]),
   technologies: z.array(z.string()).optional().default([]),
@@ -66,6 +83,14 @@ export const projectSchema = z.object({
     lat: z.coerce.number().optional().or(z.literal('')),
     lng: z.coerce.number().optional().or(z.literal('')),
   }).optional(),
+}).superRefine((data, ctx) => {
+  if (data.startDate && data.endDate && data.endDate <= data.startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['endDate'],
+      message: 'End date must be after start date',
+    })
+  }
 })
 
 export const serviceSchema = z.object({
@@ -134,18 +159,25 @@ export type PartnerFormData = z.infer<typeof partnerSchema>
 export type JobFormData = z.infer<typeof jobSchema>
 export type SettingsFormData = z.infer<typeof settingsSchema>
 
-type ButtonVariant = 'default' | 'outline' | 'destructive'
+type ButtonVariant = 'default' | 'outline' | 'destructive' | 'secondary' | 'ghost'
+type ButtonSize = 'sm' | 'default' | 'lg' | 'icon-sm'
 
-export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }>(
-  ({ className, variant = 'default', type = 'button', ...props }, ref) => (
+export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: ButtonSize }>(
+  ({ className, variant = 'default', size = 'default', type = 'button', ...props }, ref) => (
     <button
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60',
+        'inline-flex items-center justify-center rounded-xl text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60',
+        size === 'default' && 'h-11 px-4',
+        size === 'sm' && 'h-9 px-3 text-xs',
+        size === 'lg' && 'h-14 px-6',
+        size === 'icon-sm' && 'h-9 w-9 px-0',
         variant === 'default' && 'bg-teal-600 text-white hover:bg-teal-700',
         variant === 'outline' && 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200',
         variant === 'destructive' && 'bg-red-600 text-white hover:bg-red-700',
+        variant === 'secondary' && 'bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700',
+        variant === 'ghost' && 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white',
         className,
       )}
       {...props}

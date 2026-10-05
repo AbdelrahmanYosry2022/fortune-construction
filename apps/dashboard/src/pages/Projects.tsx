@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
@@ -17,8 +17,11 @@ import {
   Card,
 } from '@fortune/shared-ui'
 
-interface Project extends ProjectFormData {
+interface Project extends Omit<ProjectFormData, 'projectValue' | 'budget' | 'yearCompleted'> {
   _id: string;
+  projectValue?: string | number;
+  budget?: string | number;
+  yearCompleted?: string | number;
 }
 
 interface ProjectCategory {
@@ -49,6 +52,55 @@ const EMPTY_FORM: ProjectFormData = {
   result: '',
   galleryImages: [],
   coordinates: { lat: '', lng: '' },
+}
+
+function parseCurrencyAmount(value?: string | number | null) {
+  if (value === undefined || value === null || value === '') return ''
+  if (typeof value === 'number') return Number.isFinite(value) ? value : ''
+  const normalized = value.trim().toLowerCase().replace(/,/g, '')
+  const numeric = normalized.match(/(\d+(?:\.\d+)?)/)?.[1]
+  if (!numeric) return ''
+  const multiplier = normalized.includes('b') ? 1_000_000_000 : normalized.includes('m') ? 1_000_000 : normalized.includes('k') ? 1_000 : 1
+  const amount = Number(numeric) * multiplier
+  return Number.isFinite(amount) ? Math.round(amount) : ''
+}
+
+function parseYear(value?: string | number | null) {
+  if (value === undefined || value === null || value === '') return ''
+  const year = typeof value === 'number' ? value : Number(String(value).match(/\d{4}/)?.[0] || value)
+  return Number.isInteger(year) ? year : ''
+}
+
+function formatUsd(value?: string | number | null) {
+  const amount = parseCurrencyAmount(value)
+  if (amount === '') return ''
+  return `$${amount.toLocaleString('en-US')} USD`
+}
+
+function toDate(value?: string | Date) {
+  if (!value) return undefined
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function calculateDuration(startValue?: string | Date, endValue?: string | Date) {
+  const start = toDate(startValue)
+  const end = toDate(endValue)
+  if (!start || !end || end <= start) return ''
+  const months = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30.44)))
+  const years = Math.floor(months / 12)
+  const remainingMonths = months % 12
+  if (!years) return `~${months} month${months === 1 ? '' : 's'}`
+  if (!remainingMonths) return `~${years} year${years === 1 ? '' : 's'}`
+  return `~${years} year${years === 1 ? '' : 's'} ${remainingMonths} month${remainingMonths === 1 ? '' : 's'}`
+}
+
+function getCompletionYear(status?: string, endValue?: string | Date, explicit?: string | number) {
+  if (status === 'Completed') {
+    const end = toDate(endValue)
+    if (end) return String(end.getFullYear())
+  }
+  return explicit === undefined || explicit === null || explicit === '' ? '' : String(explicit)
 }
 
 function SectionTitle({ title, description }: { title: string; description: string }) {
@@ -105,9 +157,13 @@ function ArrayField({
 }
 
 function normalizeProjectForForm(project: Project): ProjectFormData {
+  const { _id, projectValue, budget, yearCompleted, ...restProject } = project
   return {
     ...EMPTY_FORM,
-    ...project,
+    ...restProject,
+    projectValue: parseCurrencyAmount(projectValue),
+    budget: parseCurrencyAmount(budget),
+    yearCompleted: parseYear(yearCompleted),
     scopeOfWork: project.scopeOfWork || [],
     technologies: project.technologies || [],
     galleryImages: project.galleryImages || [],
@@ -119,8 +175,18 @@ function normalizeProjectForForm(project: Project): ProjectFormData {
 }
 
 function cleanProjectPayload(data: ProjectFormData) {
+  const duration = calculateDuration(data.startDate, data.endDate)
+  const yearCompleted = getCompletionYear(data.status, data.endDate, data.yearCompleted)
+
+  const parsedProjectValue = parseCurrencyAmount(data.projectValue)
+  const parsedBudget = parseCurrencyAmount(data.budget)
+
   return {
     ...data,
+    projectValue: parsedProjectValue === '' ? undefined : parsedProjectValue,
+    budget: parsedBudget === '' ? undefined : parsedBudget,
+    duration,
+    yearCompleted,
     scopeOfWork: (data.scopeOfWork || []).filter(Boolean),
     technologies: (data.technologies || []).filter(Boolean),
     galleryImages: data.galleryImages || [],
@@ -235,6 +301,13 @@ export default function Projects() {
     form.setValue('galleryImages', current.filter((_, i) => i !== index))
   }
 
+  const watchedStartDate = form.watch('startDate')
+  const watchedEndDate = form.watch('endDate')
+  const computedDuration = useMemo(
+    () => calculateDuration(watchedStartDate, watchedEndDate),
+    [watchedStartDate, watchedEndDate],
+  )
+
   if (isLoading) {
     return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
   }
@@ -284,7 +357,7 @@ export default function Projects() {
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {projects.map((project) => (
-          <Card key={project._id} className="group overflow-hidden border-slate-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900">
+          <Card key={project._id} className="group flex h-full flex-col overflow-hidden border-slate-100 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-800">
               {project.coverImage ? (
                 <img src={project.coverImage} alt={project.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110" />
@@ -298,14 +371,14 @@ export default function Projects() {
                 {project.status || 'Ongoing'}
               </span>
             </div>
-            <div className="p-6">
+            <div className="flex flex-1 flex-col p-6">
               <h3 className="mb-4 line-clamp-1 text-lg font-bold text-slate-900 transition-colors group-hover:text-teal-600 dark:text-white">{project.title}</h3>
               <div className="mb-6 space-y-3">
                 <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 dark:text-slate-400"><MapPin className="h-4 w-4 text-teal-500" />{project.location}</div>
                 <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 dark:text-slate-400"><DollarSign className="h-4 w-4 text-teal-500" />{project.projectValue || project.budget || 'Available on request'}</div>
                 <div className="flex items-center gap-2.5 text-xs font-medium text-slate-500 dark:text-slate-400"><Clock className="h-4 w-4 text-teal-500" />{project.duration || project.yearCompleted || 'Timeline available on request'}</div>
               </div>
-              <div className="flex gap-3 border-t border-slate-50 pt-5 dark:border-slate-800">
+              <div className="mt-auto flex gap-3 border-t border-slate-50 pt-5 dark:border-slate-800">
                 <Button variant="outline" onClick={() => openEdit(project)} className="h-9 flex-1 text-xs font-bold uppercase tracking-wider">
                   <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
                 </Button>
@@ -348,12 +421,15 @@ export default function Projects() {
             </section>
 
             <section className="space-y-4">
-              <SectionTitle title="Commercial Details" description="Numbers and timeline details shown in project cards and case studies." />
+              <SectionTitle title="Commercial Details" description="USD figures and calculated timeline details shown in project cards and case studies." />
               <div className="grid gap-4 md:grid-cols-2">
-                <FormInput name="projectValue" label="Project Value" placeholder="$15M USD" />
-                <FormInput name="budget" label="Budget" type="number" min="0" placeholder="15000000" />
-                <FormInput name="duration" label="Duration" placeholder="18 months" />
-                <FormInput name="yearCompleted" label="Year Completed" placeholder="2026 or In progress" />
+                <FormInput name="projectValue" label="Project Value (USD)" type="number" min="1" placeholder="15000000" />
+                <FormInput name="budget" label="Budget (USD)" type="number" min="1" placeholder="15000000" />
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-6 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Calculated Duration</div>
+                  <div className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{computedDuration || 'Select valid start and end dates'}</div>
+                </div>
+                <FormInput name="yearCompleted" label="Year Completed" type="number" min="1900" max={new Date().getFullYear() + 20} placeholder="2026" />
               </div>
             </section>
 

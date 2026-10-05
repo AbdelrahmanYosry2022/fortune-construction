@@ -1,6 +1,6 @@
 import { Image, PageHero } from '@fortune/shared-ui'
 import { motion } from 'framer-motion'
-import { ShieldCheck, HardHat, Leaf, Award, Download, Search, Type, Smile, Phone, Mail, MapPin, Clock, Share2, Globe, Settings, Users, Briefcase, Building2, Construction, CheckCircle2, AlertCircle, Info, ExternalLink, ChevronRight, Route, Home, CheckCircle, Shield, Target } from 'lucide-react'
+import { ShieldCheck, HardHat, Leaf, Award, Download, Search, Type, Smile, Phone, Mail, MapPin, Clock, Share2, Globe, Settings, Users, Briefcase, Building2, Construction, CheckCircle2, AlertCircle, Info, ExternalLink, ChevronRight, Route, Home, CheckCircle, Shield, Target, Linkedin, Twitter } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiClient'
 import { usePageContent } from '@/hooks/usePageContent'
@@ -18,7 +18,18 @@ function EmptyState({ icon: Icon, title, description }: { icon?: any, title: str
   )
 }
 
-interface ApiTeamMember { _id: string; name: string; role: string; photo?: string; bio?: string; order: number }
+interface ApiTeamMember {
+    _id: string;
+    name: string;
+    role: string;
+    photo?: string;
+    bio?: string;
+    socialLinks?: {
+        linkedin?: string;
+        twitter?: string;
+    };
+    order: number;
+}
 
 interface AboutContent {
     hero?: { title?: string; description?: string; image?: string }
@@ -55,7 +66,15 @@ export default function AboutPage() {
 
     const { data: aboutContent } = usePageContent<AboutContent>('about')
 
-    const leaders = apiTeam?.map((m: ApiTeamMember) => ({ name: m.name, role: m.role, img: m.photo || '' })) || []
+    const leaders = apiTeam?.map((m: ApiTeamMember) => ({
+        name: m.name,
+        role: m.role,
+        img: m.photo || '',
+        links: {
+            linkedin: m.socialLinks?.linkedin?.trim() || '',
+            twitter: m.socialLinks?.twitter?.trim() || '',
+        },
+    })) || []
 
     const vision = aboutContent?.vision
     const mission = aboutContent?.mission
@@ -266,7 +285,34 @@ export default function AboutPage() {
                                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                         <div className="absolute bottom-0 left-0 w-full p-6 translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
                                             <p className="text-white text-xs font-bold uppercase tracking-widest mb-1">{leader.role}</p>
-                                            <p className="text-teal-400 text-sm font-medium">View Biography →</p>
+                                            {(leader.links.linkedin || leader.links.twitter) && (
+                                                <div className="mt-4 flex items-center gap-3">
+                                                    {leader.links.linkedin && (
+                                                        <a
+                                                            href={leader.links.linkedin}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            aria-label={`${leader.name} LinkedIn profile`}
+                                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-900 transition-colors hover:bg-teal-400 hover:text-white"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                        >
+                                                            <Linkedin className="h-4 w-4" />
+                                                        </a>
+                                                    )}
+                                                    {leader.links.twitter && (
+                                                        <a
+                                                            href={leader.links.twitter}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            aria-label={`${leader.name} Twitter profile`}
+                                                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-900 transition-colors hover:bg-teal-400 hover:text-white"
+                                                            onClick={(event) => event.stopPropagation()}
+                                                        >
+                                                            <Twitter className="h-4 w-4" />
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <h3 className="font-display text-xl font-bold text-slate-900 dark:text-white mb-1 group-hover:text-teal-600 transition-colors">{leader.name}</h3>

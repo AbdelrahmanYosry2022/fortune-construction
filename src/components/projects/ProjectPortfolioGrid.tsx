@@ -32,7 +32,7 @@ export function ProjectPortfolioGrid({ isLoading, projects }: ProjectPortfolioGr
     }
 
     return (
-        <div className="grid gap-6">
+        <div className="grid items-stretch gap-6 2xl:grid-cols-2">
             {projects.map((project, index) => (
                 <ProjectCaseStudyCard key={project._id} project={project} index={index} />
             ))}

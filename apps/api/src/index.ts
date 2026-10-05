@@ -97,7 +97,7 @@ export async function startServer() {
   const runtimeConfig = loadRuntimeConfig();
   const databaseStatus = await connectDB();
   if (databaseStatus.ready && databaseStatus.mode === 'memory' && databaseStatus.isNewDatabase) {
-    const { autoSeed } = await import('./autoSeed');
+    const { autoSeed } = await import('./autoSeed.js');
     await autoSeed();
   }
 

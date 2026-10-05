@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "dev:api": "npm run dev --workspace=apps/api",
     "dev:dashboard": "npm run dev --workspace=apps/dashboard",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:api\" \"npm run dev:dashboard\""
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:api\" \"npm run dev:dashboard\"",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
@@ -50,6 +51,7 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^25.3.0",
     "@types/react": "^18.2.66",

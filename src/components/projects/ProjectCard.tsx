@@ -13,7 +13,7 @@ export function ProjectCard({
     return (
         <div
             className={cn(
-                'relative overflow-hidden rounded-3xl cursor-pointer group shadow-lg shadow-slate-200/50 dark:shadow-black/20 border border-slate-100 dark:border-slate-800 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1',
+                'relative h-full min-h-[360px] overflow-hidden rounded-3xl cursor-pointer group shadow-lg shadow-slate-200/50 dark:shadow-black/20 border border-slate-100 dark:border-slate-800 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1',
                 project.size === 'wide' ? 'md:col-span-2' : project.size === 'tall' ? 'md:row-span-2' : ''
             )}
             onMouseEnter={onMouseEnter}
