@@ -40,3 +40,8 @@ apps/api/uploads/
 
 # Spec Kit - opencode agent credentials
 .opencode/
+
+# Test output and evidence images
+test-results/
+**/evidence/*.png
+
