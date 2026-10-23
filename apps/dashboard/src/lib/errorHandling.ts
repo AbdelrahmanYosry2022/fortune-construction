@@ -70,6 +70,38 @@ export function getSafeErrorMessage(error: unknown): string {
   return 'Something went wrong in the dashboard. Please reload the page.'
 }
 
+// Turns an API error into a short message the admin can act on.
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (!axios.isAxiosError(error)) return fallback
+  if (!error.response) return 'Could not reach the server. Check your internet connection and try again.'
+
+  const raw = error.response.data
+  const data: Record<string, unknown> = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
+  const message = typeof data.message === 'string' && data.message ? data.message : undefined
+
+  if (error.response.status === 429) return message ?? 'Too many requests. Please wait a few minutes and try again.'
+  if (error.response.status === 413) return 'File is too large for the server.'
+
+  // { details: [{ field, message }] } from the shared API error handler
+  if (Array.isArray(data.details)) {
+    const detail = data.details.find((item) => item && typeof item.message === 'string' && item.message)
+    if (detail) return detail.message as string
+  }
+
+  // { errors: { field: ['message'] } } from the projects route
+  if (data.errors && typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+    const fieldErrors = Object.entries(data.errors as Record<string, unknown>)
+      .map(([field, value]) => {
+        const first = Array.isArray(value) ? value[0] : value
+        return typeof first === 'string' && first ? `${field}: ${first}` : undefined
+      })
+      .filter((text): text is string => Boolean(text))
+    if (fieldErrors.length) return fieldErrors.join(' · ')
+  }
+
+  return message ?? fallback
+}
+
 export function getTechnicalDetails(error: unknown): string | undefined {
   if (!import.meta.env.DEV) return undefined
   if (error instanceof Error) return error.stack || error.message

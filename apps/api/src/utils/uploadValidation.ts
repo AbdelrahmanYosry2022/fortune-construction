@@ -24,7 +24,10 @@ export function uploadFileFilter(category: UploadCategory): multer.Options['file
     const extension = path.extname(file.originalname).toLowerCase();
 
     if (!policy.extensions.includes(extension) || !policy.mimeTypes.includes(file.mimetype)) {
-      cb(new ApiError(400, 'Invalid upload', 'UPLOAD_VALIDATION_ERROR'));
+      cb(new ApiError(400, 'Invalid upload', 'UPLOAD_VALIDATION_ERROR', [{
+        field: file.fieldname,
+        message: `Unsupported file type. Allowed types are ${policy.extensions.join(', ')}`,
+      }]));
       return;
     }
 

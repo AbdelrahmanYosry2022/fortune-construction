@@ -4,10 +4,11 @@ import JobApplication from '../models/JobApplication';
 import ContactMessage from '../models/ContactMessage';
 import JobPosition from '../models/JobPosition';
 import { protect } from '../middleware/auth';
+import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-router.get('/', protect, async (_req: Request, res: Response): Promise<void> => {
+router.get('/', protect, asyncHandler(async (_req: Request, res: Response): Promise<void> => {
   const [projects, applications, messages, jobs, unreadMessages, newApplications] = await Promise.all([
     Project.countDocuments(),
     JobApplication.countDocuments(),
@@ -30,6 +31,6 @@ router.get('/', protect, async (_req: Request, res: Response): Promise<void> => 
     recentApplications,
     recentMessages,
   });
-});
+}));
 
 export default router;

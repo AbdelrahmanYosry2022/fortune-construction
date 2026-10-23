@@ -47,6 +47,13 @@ const optionalYear = z.preprocess(
     .min(1900, 'Year completed must be 1900 or later')
     .max(new Date().getFullYear() + 20, 'Year completed is too far in the future'),
 ).optional().or(z.literal(''))
+const optionalCoordinate = (label: string, limit: number) =>
+  z.preprocess(
+    emptyToUndefined,
+    z.coerce.number({ invalid_type_error: `${label} must be a number` })
+      .min(-limit, `${label} must be between -${limit} and ${limit}`)
+      .max(limit, `${label} must be between -${limit} and ${limit}`),
+  ).optional().or(z.literal(''))
 
 const email = z.string({ required_error: 'Email is required' }).email('Please enter a valid email address')
 const phone = z
@@ -80,8 +87,9 @@ export const projectSchema = z.object({
   result: z.string().optional(),
   galleryImages: z.array(z.string()).optional().default([]),
   coordinates: z.object({
-    lat: z.coerce.number().optional().or(z.literal('')),
-    lng: z.coerce.number().optional().or(z.literal('')),
+    // Empty stays '' (not 0), so a project without coordinates is not pinned at 0,0.
+    lat: optionalCoordinate('Latitude', 90),
+    lng: optionalCoordinate('Longitude', 180),
   }).optional(),
 }).superRefine((data, ctx) => {
   if (data.startDate && data.endDate && data.endDate <= data.startDate) {
@@ -225,6 +233,7 @@ interface FormInputProps {
   accept?: string
   min?: string | number
   max?: string | number
+  step?: string | number
   onChangeFile?: (file: File | null) => void
 }
 
@@ -239,6 +248,7 @@ export function FormInput({
   accept,
   min,
   max,
+  step,
   onChangeFile,
 }: FormInputProps) {
   const { register, formState: { errors } } = useFormContext()
@@ -264,7 +274,17 @@ export function FormInput({
           {...register(name, { onChange: (event) => onChangeFile?.(event.target.files?.[0] || null) })}
         />
       ) : (
-        <Input type={type} placeholder={placeholder} disabled={disabled} min={min} max={max} className={inputClassName} {...register(name)} />
+        <Input
+          type={type}
+          placeholder={placeholder}
+          disabled={disabled}
+          min={min}
+          max={max}
+          // Number inputs default to step=1, so fields that need decimals (map coordinates) pass step="any".
+          step={step}
+          className={inputClassName}
+          {...register(name)}
+        />
       )}
       {error && (
         <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-red-600">

@@ -3,21 +3,22 @@ import { ZodError } from 'zod';
 import Project from '../models/Project';
 import { protect } from '../middleware/auth';
 import { parseProjectCreatePayload, parseProjectUpdatePayload } from '../utils/projectPayload';
+import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
-router.get('/', async (_req: Request, res: Response): Promise<void> => {
+router.get('/', asyncHandler(async (_req: Request, res: Response): Promise<void> => {
   const projects = await Project.find().sort({ createdAt: -1 });
   res.json(projects);
-});
+}));
 
-router.get('/:id', async (req: Request, res: Response): Promise<void> => {
+router.get('/:id', asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const project = await Project.findById(req.params.id);
   if (!project) { res.status(404).json({ message: 'Project not found' }); return; }
   res.json(project);
-});
+}));
 
-router.post('/', protect, async (req: Request, res: Response): Promise<void> => {
+router.post('/', protect, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   try {
     const project = await Project.create(parseProjectCreatePayload(req.body));
     res.status(201).json(project);
@@ -28,9 +29,9 @@ router.post('/', protect, async (req: Request, res: Response): Promise<void> => 
     }
     throw error;
   }
-});
+}));
 
-router.put('/:id', protect, async (req: Request, res: Response): Promise<void> => {
+router.put('/:id', protect, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   try {
     const project = await Project.findByIdAndUpdate(req.params.id, parseProjectUpdatePayload(req.body), { new: true });
     if (!project) { res.status(404).json({ message: 'Project not found' }); return; }
@@ -42,11 +43,11 @@ router.put('/:id', protect, async (req: Request, res: Response): Promise<void> =
     }
     throw error;
   }
-});
+}));
 
-router.delete('/:id', protect, async (req: Request, res: Response): Promise<void> => {
+router.delete('/:id', protect, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   await Project.findByIdAndDelete(req.params.id);
   res.json({ message: 'Project deleted' });
-});
+}));
 
 export default router;

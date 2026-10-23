@@ -1,13 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import path from 'path';
 import { connectDB, DatabaseStatus } from './config/db';
 import { loadRuntimeConfig, RuntimeConfig } from './config/runtime';
 import { createCorsOptions } from './config/cors';
 import { errorHandler } from './middleware/errors';
+import { createApiLimiter, createLoginLimiter, createSubmissionLimiter, resolveTrustProxy } from './middleware/rateLimits';
 import { safeLogger } from './utils/safeLogger';
 
 import authRoutes from './routes/auth';
@@ -38,6 +38,9 @@ export function createApp(
   runtimeConfig: RuntimeConfig = loadRuntimeConfig()
 ) {
   const app = express();
+  // The API runs behind nginx on the same machine. Trusting only the local proxy
+  // lets req.ip be the real visitor IP, so each visitor gets their own rate limit.
+  app.set('trust proxy', resolveTrustProxy());
   app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
   }));
@@ -51,11 +54,22 @@ export function createApp(
     next();
   });
 
-  const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 200 });
-  app.use(limiter);
+  // Uploaded files are served before the rate limiter: viewing images must not use up
+  // the request budget. Image/video names are unique, so browsers may cache them for a week.
+  // Applicant CVs are personal data and must not be cached.
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
+    maxAge: '7d',
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.split(path.sep).includes('cvs')) res.setHeader('Cache-Control', 'private, no-store');
+    },
+  }));
+
+  app.use(createApiLimiter());
+  app.use('/api/auth/login', createLoginLimiter());
+  app.use(['/api/messages/submit', '/api/applications/submit'], createSubmissionLimiter());
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
-  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
   app.use('/api/auth', authRoutes);
   app.use('/api/projects', projectRoutes);

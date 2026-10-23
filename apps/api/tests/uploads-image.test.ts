@@ -8,6 +8,7 @@ interface UploadBody {
   url?: string;
   type?: string;
   code?: string;
+  details?: Array<{ field?: string; message: string }>;
 }
 
 test('image upload accepts valid image MIME and extension with sanitized filename', async () => {
@@ -40,6 +41,7 @@ test('image upload rejects mismatched MIME and extension', async () => {
 
     assert.equal(response.status, 400);
     assert.equal(body.code, 'UPLOAD_VALIDATION_ERROR');
+    assert.match(body.details?.[0]?.message ?? '', /Unsupported file type/);
   } finally {
     await server.close();
   }
@@ -56,6 +58,7 @@ test('image upload rejects files over the configured image size limit', async ()
 
     assert.equal(response.status, 400);
     assert.equal(body.code, 'UPLOAD_VALIDATION_ERROR');
+    assert.equal(body.details?.[0]?.message, 'File is too large (max 10 MB)');
   } finally {
     await server.close();
   }
