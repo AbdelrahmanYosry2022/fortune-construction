@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Save, Loader2, Globe, Phone, Mail, MapPin, Clock, Share2, Type } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -28,22 +30,27 @@ export default function Settings() {
     }
   })
 
-  const { data, isLoading } = useQuery<SettingsFormData>({
+  const { data, error, isLoading, refetch } = useQuery<SettingsFormData>({
     queryKey: ['settings'],
     queryFn: () => api.get('/settings').then(r => r.data),
   })
 
-  useEffect(() => { 
-    if (data) form.reset(data) 
+  // Background refetches (e.g. when the tab regains focus) must not wipe edits that are not saved yet.
+  const isDirtyRef = useRef(false)
+  isDirtyRef.current = form.formState.isDirty
+
+  useEffect(() => {
+    if (data && !isDirtyRef.current) form.reset(data)
   }, [data, form])
 
   const save = useMutation({
     mutationFn: (d: SettingsFormData) => api.put('/settings', d),
-    onSuccess: () => { 
+    onSuccess: (_response, saved) => {
+      form.reset(saved)
       qc.invalidateQueries({ queryKey: ['settings'] })
       toast.success('Settings saved successfully!') 
     },
-    onError: () => toast.error('Failed to save settings'),
+    onError: (error) => toast.error(`Failed to save settings: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const onSubmit = (data: SettingsFormData) => {
@@ -51,6 +58,26 @@ export default function Settings() {
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-sky-500 animate-spin" /></div>
+
+  // Never show the form without the saved settings: saving it would overwrite them with blanks.
+  if (!data) {
+    return (
+      <div className="max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Site Settings</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage global company information and website-wide configurations.</p>
+          </div>
+        </div>
+        <DataUnavailableState
+          resourceLabel="site settings"
+          error={error}
+          message={`Could not load site settings: ${getApiErrorMessage(error, 'please try again')}`}
+          onRetry={() => refetch()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-4xl space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">

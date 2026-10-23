@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, uploadMedia } from '../lib/api'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Loader2, Save, Plus, Trash2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Card, Input, Textarea, MediaUploadField } from '@fortune/shared-ui'
@@ -274,7 +275,7 @@ export default function PageContentEditor() {
           onRetry={() => void refetch()}
           resourceLabel="page content"
           title="Page content could not be loaded"
-          message="Nothing can be edited until the current content loads, so existing sections are not overwritten. Please retry."
+          message={`Could not load page content: ${getApiErrorMessage(error, 'please try again').replace(/\.?$/, '.')} Nothing can be edited until the current content loads, so existing sections are not overwritten.`}
         />
       ) : (
       <div className="space-y-6">
@@ -318,7 +319,7 @@ function SectionEditor({
       toast.success(`${sectionLabel} saved!`)
       onSaved()
     },
-    onError: () => toast.error('Failed to save'),
+    onError: (error) => toast.error(`Failed to save ${sectionLabel}: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const updateField = (key: string, value: unknown) => {

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
-import { isNetworkUnavailableError } from '../lib/errorHandling'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { FolderKanban, MessageSquare, Briefcase, HardHat, Mail, Clock, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Card, Button } from '@fortune/shared-ui'
@@ -27,7 +27,7 @@ function StatCard({ label, value, icon: Icon, color, badge, onClick }: {
 
 export default function Overview() {
   const navigate = useNavigate()
-  const { data: stats, error, isError, isLoading, refetch } = useQuery({
+  const { data: stats, error, isLoading, refetch } = useQuery({
     queryKey: ['stats'],
     queryFn: () => api.get('/stats').then(r => r.data),
   })
@@ -38,18 +38,19 @@ export default function Overview() {
     </div>
   )
 
-  if (isError && isNetworkUnavailableError(error)) {
+  if (!stats) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Overview</h1>
-          <p className="text-sm text-slate-500 mt-1">Dashboard data is temporarily unavailable.</p>
+          <p className="text-sm text-slate-500 mt-1">Dashboard data could not be loaded.</p>
         </div>
         <DataUnavailableState
           error={error}
+          message={`Could not load the dashboard overview: ${getApiErrorMessage(error, 'please try again')}`}
           onRetry={() => void refetch()}
           resourceLabel="dashboard overview"
-          title="Overview data temporarily unavailable"
+          title="Overview data unavailable"
         />
       </div>
     )

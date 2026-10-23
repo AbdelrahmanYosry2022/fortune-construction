@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Trash2, Mail, MailOpen, Search, Phone } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GlobalModal } from '@fortune/shared-ui'
@@ -17,19 +19,25 @@ export default function Messages() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  const { data: messages = [], isLoading } = useQuery<Message[]>({
+  const { data, isLoading, error, refetch } = useQuery<Message[]>({
     queryKey: ['messages', filter],
     queryFn: () => api.get('/messages', { params: filter !== '' ? { isRead: filter } : {} }).then(r => r.data),
   })
+  const messages = data ?? []
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  const loadFailed = !data
+  const deleteTarget = messages.find(m => m._id === deleteId)
 
   const markRead = useMutation({
     mutationFn: (id: string) => api.patch(`/messages/${id}/read`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['messages'] }); qc.invalidateQueries({ queryKey: ['stats'] }) },
+    onError: (error) => toast.error(`Failed to mark message as read: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/messages/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['messages'] }); qc.invalidateQueries({ queryKey: ['stats'] }); toast.success('Deleted') },
+    onError: (error) => toast.error(`Failed to delete message: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const filtered = messages.filter(m =>
@@ -47,7 +55,7 @@ export default function Messages() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Contact Messages</h1>
-          <p className="text-sm text-slate-500 mt-1">{messages.length} total · {unread} unread messages</p>
+          <p className="text-sm text-slate-500 mt-1">{loadFailed ? 'Messages could not be loaded' : `${messages.length} total · ${unread} unread messages`}</p>
         </div>
       </div>
 
@@ -75,7 +83,16 @@ export default function Messages() {
 
       {/* Messages list */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-50 dark:divide-slate-800">
-        {filtered.length === 0 && (
+        {loadFailed && (
+          <DataUnavailableState
+            className="m-6"
+            resourceLabel="messages"
+            error={error}
+            message={`Could not load messages: ${getApiErrorMessage(error, 'please try again')}`}
+            onRetry={() => refetch()}
+          />
+        )}
+        {!loadFailed && filtered.length === 0 && (
           <div className="text-center py-20 text-slate-400 dark:text-slate-600 font-medium">No messages found</div>
         )}
         {filtered.map(m => (
@@ -127,7 +144,8 @@ export default function Messages() {
                 )}
                 <button 
                   onClick={() => setDeleteId(m._id)} 
-                  className="h-9 w-9 flex items-center justify-center bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-500 rounded-full transition-all"
+                  disabled={remove.isPending}
+                  className="h-9 w-9 flex items-center justify-center bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-500 rounded-full transition-all disabled:opacity-50"
                   title="Delete message"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -142,7 +160,7 @@ export default function Messages() {
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Message"
-        description="Are you sure you want to delete this message? This action cannot be undone."
+        description={deleteTarget ? `Delete the message from “${deleteTarget.name}”? This cannot be undone.` : 'Delete this message? This cannot be undone.'}
         type="destructive"
         actionText="Delete"
         onAction={() => {

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, ImagePlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -32,10 +34,12 @@ export default function Partners() {
     defaultValues: EMPTY_FORM
   })
 
-  const { data: partners = [], isLoading } = useQuery<Partner[]>({
+  const { data, isLoading, error, refetch } = useQuery<Partner[]>({
     queryKey: ['partners'],
     queryFn: () => api.get('/partners').then(r => r.data),
   })
+  const partners = data ?? []
+  const deleteTarget = partners.find(p => p._id === deleteId)
 
   const save = useMutation({
     mutationFn: (data: PartnerFormData) => 
@@ -45,7 +49,7 @@ export default function Partners() {
       toast.success('Partner saved successfully!')
       setModalOpen(false) 
     },
-    onError: () => toast.error('Failed to save partner'),
+    onError: (error) => toast.error(`Failed to save partner: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
@@ -54,6 +58,7 @@ export default function Partners() {
       qc.invalidateQueries({ queryKey: ['partners'] })
       toast.success('Partner deleted') 
     },
+    onError: (error) => toast.error(`Failed to delete partner: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const openAdd = () => { 
@@ -80,6 +85,26 @@ export default function Partners() {
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-sky-500 animate-spin" /></div>
+
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  if (!data) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Business Partners</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage corporate partners and client logos displayed on the site.</p>
+          </div>
+        </div>
+        <DataUnavailableState
+          resourceLabel="partners"
+          error={error}
+          message={`Could not load partners: ${getApiErrorMessage(error, 'please try again')}`}
+          onRetry={() => refetch()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -119,7 +144,7 @@ export default function Partners() {
               <Button variant="outline" onClick={() => openEdit(p)} className="flex-1 h-9 text-[10px] font-bold uppercase tracking-wider">
                 <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
               </Button>
-              <Button variant="destructive" onClick={() => setDeleteId(p._id)} className="h-9 px-3">
+              <Button variant="destructive" onClick={() => setDeleteId(p._id)} disabled={remove.isPending} className="h-9 px-3">
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -131,7 +156,7 @@ export default function Partners() {
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Partner"
-        description="Are you sure you want to delete this partner?"
+        description={deleteTarget ? `Delete “${deleteTarget.name}”? This cannot be undone.` : 'Delete this partner? This cannot be undone.'}
         type="destructive"
         actionText="Delete"
         onAction={() => {

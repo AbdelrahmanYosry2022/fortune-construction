@@ -3,7 +3,7 @@ import { useFieldArray } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
-import { getApiErrorMessage, isNetworkUnavailableError } from '../lib/errorHandling'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, MapPin, DollarSign, Clock, ImagePlus, X, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -219,18 +219,18 @@ export default function Projects() {
   })
 
   const {
-    data: projects = [],
+    data: projectsData,
     error: projectsError,
-    isError: projectsHasError,
     isLoading,
     refetch: retryProjects,
   } = useQuery<Project[]>({
     queryKey: ['projects'],
     queryFn: () => api.get('/projects').then((r) => r.data),
   })
+  const projects = projectsData ?? []
 
   const {
-    data: categories = [],
+    data: categoriesData,
     error: categoriesError,
     isError: categoriesHasError,
     refetch: retryCategories,
@@ -238,6 +238,7 @@ export default function Projects() {
     queryKey: ['project-categories'],
     queryFn: () => api.get('/project-categories').then((r) => r.data),
   })
+  const categories = categoriesData ?? []
 
   const categoryOptions = categories
     .filter((category) => category.isActive)
@@ -261,7 +262,7 @@ export default function Projects() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       toast.success('Project deleted successfully')
     },
-    onError: (error) => toast.error(`Failed to delete project: ${getApiErrorMessage(error, 'please try again')}`),
+    onError: (error) => toast.error(`Failed to delete project: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const openAdd = () => {
@@ -355,7 +356,9 @@ export default function Projects() {
     return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-teal-500" /></div>
   }
 
-  if (projectsHasError && isNetworkUnavailableError(projectsError)) {
+  // Any failed load (not only network errors) must say so instead of showing an empty list.
+  // Cached projects stay visible if a background refetch fails.
+  if (!projectsData) {
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex items-center justify-between">
@@ -366,6 +369,7 @@ export default function Projects() {
         </div>
         <DataUnavailableState
           error={projectsError}
+          message={`Could not load projects: ${getApiErrorMessage(projectsError, 'please try again')}`}
           onRetry={() => void retryProjects()}
           resourceLabel="project records"
           title="Projects temporarily unavailable"
@@ -374,7 +378,7 @@ export default function Projects() {
     )
   }
 
-  const categoriesUnavailable = categoriesHasError && isNetworkUnavailableError(categoriesError)
+  const categoriesUnavailable = categoriesHasError && !categoriesData
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, ImagePlus, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -33,10 +35,12 @@ export default function Team() {
     defaultValues: EMPTY_FORM
   })
 
-  const { data: members = [], isLoading } = useQuery<Member[]>({
+  const { data, isLoading, error, refetch } = useQuery<Member[]>({
     queryKey: ['team'],
     queryFn: () => api.get('/team').then(r => r.data),
   })
+  const members = data ?? []
+  const deleteTarget = members.find(m => m._id === deleteId)
 
   const save = useMutation({
     mutationFn: (data: TeamFormData) => 
@@ -46,7 +50,7 @@ export default function Team() {
       toast.success('Team member saved successfully!')
       setModalOpen(false) 
     },
-    onError: () => toast.error('Failed to save team member'),
+    onError: (error) => toast.error(`Failed to save team member: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
@@ -55,6 +59,7 @@ export default function Team() {
       qc.invalidateQueries({ queryKey: ['team'] })
       toast.success('Team member deleted') 
     },
+    onError: (error) => toast.error(`Failed to delete team member: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const handleImageUpload = async (file: File | null) => {
@@ -64,7 +69,7 @@ export default function Team() {
       const url = await uploadImage(file)
       form.setValue('photo', url) 
     } 
-    catch { toast.error('Upload failed') }
+    catch (error) { toast.error(`Image upload failed: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }) }
     finally { setUploading(false) }
   }
 
@@ -91,6 +96,26 @@ export default function Team() {
   }
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-sky-500 animate-spin" /></div>
+
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  if (!data) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Leadership Team</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage the profiles of the visionary professionals leading Fortune Construction.</p>
+          </div>
+        </div>
+        <DataUnavailableState
+          resourceLabel="team members"
+          error={error}
+          message={`Could not load team members: ${getApiErrorMessage(error, 'please try again')}`}
+          onRetry={() => refetch()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -123,7 +148,7 @@ export default function Team() {
               <Button variant="outline" onClick={() => openEdit(m)} className="flex-1 h-9 text-[10px] font-bold uppercase tracking-wider">
                 <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
               </Button>
-              <Button variant="destructive" onClick={() => setDeleteId(m._id)} className="h-9 px-3">
+              <Button variant="destructive" onClick={() => setDeleteId(m._id)} disabled={remove.isPending} className="h-9 px-3">
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -135,7 +160,7 @@ export default function Team() {
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Team Member"
-        description="Are you sure you want to delete this team member?"
+        description={deleteTarget ? `Delete “${deleteTarget.name}”? This cannot be undone.` : 'Delete this team member? This cannot be undone.'}
         type="destructive"
         actionText="Delete"
         onAction={() => {
@@ -167,7 +192,7 @@ export default function Team() {
                   type="file" 
                   accept="image/*" 
                   className="absolute inset-0 opacity-0 cursor-pointer" 
-                  onChange={(e) => handleImageUpload(e.target.files?.[0] || null)} 
+                  onChange={(e) => { const file = e.target.files?.[0] || null; e.target.value = ''; handleImageUpload(file) }} 
                   disabled={uploading}
                 />
               </div>
@@ -185,7 +210,7 @@ export default function Team() {
                   type="file" 
                   accept="image/*" 
                   className="absolute inset-0 opacity-0 cursor-pointer" 
-                  onChange={(e) => handleImageUpload(e.target.files?.[0] || null)} 
+                  onChange={(e) => { const file = e.target.files?.[0] || null; e.target.value = ''; handleImageUpload(file) }} 
                 />
                 {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <ImagePlus className="w-4 h-4 mr-2" />}
                 {uploading ? 'Uploading...' : 'Upload Image'}
