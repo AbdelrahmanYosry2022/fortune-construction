@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useFieldArray } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
-import { isNetworkUnavailableError } from '../lib/errorHandling'
+import { getApiErrorMessage, isNetworkUnavailableError } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, MapPin, DollarSign, Clock, ImagePlus, X, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import {
@@ -32,6 +32,9 @@ interface ProjectCategory {
   order?: number;
   isActive: boolean;
 }
+
+// A few uploads at a time: fast enough, and one failed photo no longer cancels the whole batch.
+const GALLERY_UPLOAD_CONCURRENCY = 3
 
 const EMPTY_FORM: ProjectFormData = {
   title: '',
@@ -186,7 +189,7 @@ function cleanProjectPayload(data: ProjectFormData) {
     projectValue: parsedProjectValue === '' ? undefined : parsedProjectValue,
     budget: parsedBudget === '' ? undefined : parsedBudget,
     duration,
-    yearCompleted,
+    yearCompleted: yearCompleted === '' ? undefined : yearCompleted,
     scopeOfWork: (data.scopeOfWork || []).filter(Boolean),
     technologies: (data.technologies || []).filter(Boolean),
     galleryImages: data.galleryImages || [],
@@ -204,6 +207,11 @@ export default function Projects() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
+  const [galleryProgress, setGalleryProgress] = useState({ done: 0, total: 0 })
+  // Bumped whenever the form is opened for another project, so a slow upload
+  // never writes its URLs into a different project's form.
+  const formSessionRef = useRef(0)
+  const isUploading = uploading || uploadingGallery
 
   const form = useFormSchema({
     schema: projectSchema,
@@ -244,7 +252,7 @@ export default function Projects() {
       toast.success('Project saved successfully!')
       setModalOpen(false)
     },
-    onError: () => toast.error('Failed to save project'),
+    onError: (error) => toast.error(`Failed to save project: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
@@ -253,15 +261,18 @@ export default function Projects() {
       qc.invalidateQueries({ queryKey: ['projects'] })
       toast.success('Project deleted successfully')
     },
+    onError: (error) => toast.error(`Failed to delete project: ${getApiErrorMessage(error, 'please try again')}`),
   })
 
   const openAdd = () => {
+    formSessionRef.current += 1
     setEditingId(null)
     form.reset({ ...EMPTY_FORM, category: categoryOptions[0]?.value || '' })
     setModalOpen(true)
   }
 
   const openEdit = (project: Project) => {
+    formSessionRef.current += 1
     setEditingId(project._id)
     form.reset(normalizeProjectForForm(project))
     setModalOpen(true)
@@ -269,28 +280,60 @@ export default function Projects() {
 
   const handleImageUpload = async (file: File | null) => {
     if (!file) return
-    setUploadingGallery(false)
     setUploading(true)
+    const session = formSessionRef.current
     try {
       const url = await uploadImage(file)
+      if (session !== formSessionRef.current) return
       form.setValue('coverImage', url)
-    } catch {
-      toast.error('Image upload failed')
+    } catch (error) {
+      toast.error(`Cover image upload failed: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 })
     } finally {
       setUploading(false)
     }
   }
 
-  const handleGalleryUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return
+  const handleGalleryUpload = async (files: File[]) => {
+    if (files.length === 0) return
+    const session = formSessionRef.current
     setUploadingGallery(true)
+    setGalleryProgress({ done: 0, total: files.length })
+
+    const urls: Array<string | undefined> = new Array(files.length)
+    const failures: string[] = []
+    let nextIndex = 0
+    let done = 0
+
+    const uploadNext = async () => {
+      while (nextIndex < files.length) {
+        const index = nextIndex++
+        const file = files[index]
+        try {
+          urls[index] = await uploadImage(file)
+        } catch (error) {
+          failures.push(`${file.name}: ${getApiErrorMessage(error, 'upload failed')}`)
+        }
+        done += 1
+        setGalleryProgress({ done, total: files.length })
+      }
+    }
+
     try {
-      const uploadPromises = Array.from(files).map((file) => uploadImage(file))
-      const urls = await Promise.all(uploadPromises)
-      const current = form.getValues('galleryImages') || []
-      form.setValue('galleryImages', [...current, ...urls])
-    } catch {
-      toast.error('Gallery upload failed')
+      await Promise.all(Array.from({ length: Math.min(GALLERY_UPLOAD_CONCURRENCY, files.length) }, uploadNext))
+      const uploaded = urls.filter((url): url is string => Boolean(url))
+      if (session !== formSessionRef.current) {
+        toast.error('The project form was closed before the photos finished uploading. Please add them again.', { duration: 10000 })
+        return
+      }
+      if (uploaded.length) {
+        const current = form.getValues('galleryImages') || []
+        form.setValue('galleryImages', [...current, ...uploaded])
+      }
+      if (failures.length) {
+        toast.error(`${failures.length} of ${files.length} photos failed to upload. ${failures[0]}`, { duration: 10000 })
+      } else {
+        toast.success(`${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} uploaded`)
+      }
     } finally {
       setUploadingGallery(false)
     }
@@ -449,7 +492,16 @@ export default function Projects() {
               <SectionTitle title="Media" description="High-quality visuals used in the portfolio and gallery." />
               <FormInput name="coverImage" label="Cover Image URL" placeholder="https://..." />
               <Button type="button" variant="outline" className="relative w-full overflow-hidden" disabled={uploading}>
-                <input type="file" accept="image/*" className="absolute inset-0 cursor-pointer opacity-0" onChange={(event) => handleImageUpload(event.target.files?.[0] || null)} />
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] || null
+                    event.target.value = ''
+                    void handleImageUpload(file)
+                  }}
+                />
                 {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
                 {uploading ? 'Uploading...' : 'Upload Cover Image'}
               </Button>
@@ -466,8 +518,24 @@ export default function Projects() {
                   </div>
                 ))}
                 <div className="relative flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:border-teal-500">
-                  {uploadingGallery ? <Loader2 className="h-6 w-6 animate-spin text-teal-500" /> : <><Plus className="mb-1 h-6 w-6" /><span className="text-xs">Add Photos</span></>}
-                  <input type="file" accept="image/*" multiple className="absolute inset-0 cursor-pointer opacity-0" onChange={(event) => handleGalleryUpload(event.target.files)} />
+                  {uploadingGallery ? (
+                    <>
+                      <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
+                      <span className="mt-1 text-xs">{galleryProgress.done}/{galleryProgress.total}</span>
+                    </>
+                  ) : <><Plus className="mb-1 h-6 w-6" /><span className="text-xs">Add Photos</span></>}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    disabled={uploadingGallery}
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    onChange={(event) => {
+                      const files = Array.from(event.target.files || [])
+                      event.target.value = ''
+                      void handleGalleryUpload(files)
+                    }}
+                  />
                 </div>
               </div>
             </section>
@@ -475,16 +543,16 @@ export default function Projects() {
             <section className="space-y-4">
               <SectionTitle title="Map Location" description="Optional coordinates for placing the project on the Malawi map." />
               <div className="grid gap-4 md:grid-cols-2">
-                <FormInput name="coordinates.lat" label="Latitude" type="number" placeholder="-13.9626" />
-                <FormInput name="coordinates.lng" label="Longitude" type="number" placeholder="33.7741" />
+                <FormInput name="coordinates.lat" label="Latitude" type="number" step="any" placeholder="-13.9626" />
+                <FormInput name="coordinates.lng" label="Longitude" type="number" step="any" placeholder="33.7741" />
               </div>
             </section>
 
             <div className="sticky bottom-0 flex gap-3 border-t border-slate-100 bg-white py-4">
               <Button type="button" variant="outline" className="flex-1" onClick={() => setModalOpen(false)}>Cancel</Button>
-              <Button type="submit" className="flex-1" disabled={save.isPending}>
-                {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {save.isPending ? 'Saving...' : 'Save Project'}
+              <Button type="submit" className="flex-1" disabled={save.isPending || isUploading}>
+                {save.isPending || isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {save.isPending ? 'Saving...' : isUploading ? 'Waiting for uploads...' : 'Save Project'}
               </Button>
             </div>
           </form>

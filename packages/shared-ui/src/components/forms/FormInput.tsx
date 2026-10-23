@@ -32,6 +32,7 @@ interface CustomFormInputProps {
   accept?: string // For file type
   min?: string | number // For number/date type
   max?: string | number // For number/date type
+  step?: string | number // For number type, e.g. "any" to allow decimals
   onChangeFile?: (file: File | null) => void // Custom handler for files
 }
 
@@ -47,6 +48,7 @@ export function FormInput({
   accept,
   min,
   max,
+  step,
   onChangeFile,
 }: CustomFormInputProps) {
   const { control, formState: { errors } } = useFormContext()
@@ -115,6 +117,7 @@ export function FormInput({
                 disabled={disabled}
                 min={min}
                 max={max}
+                step={step}
                 className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 transition-all focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 h-14 px-6 rounded-2xl shadow-sm"
                 {...field}
                 value={field.value ?? ''}

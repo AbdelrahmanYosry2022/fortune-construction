@@ -1,9 +1,27 @@
 import fs from 'fs';
 import { ErrorRequestHandler, Request, Response } from 'express';
+import mongoose from 'mongoose';
 import multer from 'multer';
 import { ZodError } from 'zod';
 import { safeLogger } from '../utils/safeLogger';
 import { redactClientValue } from '../utils/redaction';
+import { UploadCategory, uploadPolicies } from '../config/uploadPolicy';
+
+const UPLOAD_FIELD_CATEGORIES: Record<string, UploadCategory> = {
+  image: 'image',
+  video: 'video',
+  cvFile: 'cv',
+};
+
+// Tells the dashboard why an upload failed instead of a bare "Invalid upload".
+function multerDetails(error: multer.MulterError): Array<{ field?: string; message: string }> {
+  if (error.code === 'LIMIT_FILE_SIZE') {
+    const category = error.field ? UPLOAD_FIELD_CATEGORIES[error.field] : undefined;
+    const maxMb = category ? Math.round(uploadPolicies[category].maxSizeBytes / (1024 * 1024)) : undefined;
+    return [{ field: error.field, message: maxMb ? `File is too large (max ${maxMb} MB)` : 'File is too large' }];
+  }
+  return [{ field: error.field, message: error.message }];
+}
 
 export class ApiError extends Error {
   constructor(
@@ -85,8 +103,32 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
+  // A malformed id (e.g. /api/projects/not-an-id) cannot match any record: 404.
+  // Any other field with a value of the wrong type is a bad request: 400 naming the field.
+  if (error instanceof mongoose.Error.CastError) {
+    if (error.path === '_id') {
+      sendApiError(res, 404, 'Not found', 'NOT_FOUND');
+    } else {
+      sendApiError(res, 400, 'Invalid request', 'VALIDATION_ERROR', [
+        { field: error.path, message: `Invalid value for ${error.path}` },
+      ]);
+    }
+    return;
+  }
+
+  if (error instanceof mongoose.Error.ValidationError) {
+    sendApiError(
+      res,
+      400,
+      'Invalid request',
+      'VALIDATION_ERROR',
+      Object.values(error.errors).map((issue) => ({ field: issue.path, message: issue.message }))
+    );
+    return;
+  }
+
   if (error instanceof multer.MulterError) {
-    sendApiError(res, 400, 'Invalid upload', 'UPLOAD_VALIDATION_ERROR');
+    sendApiError(res, 400, 'Invalid upload', 'UPLOAD_VALIDATION_ERROR', multerDetails(error));
     return;
   }
 

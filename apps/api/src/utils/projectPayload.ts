@@ -1,14 +1,19 @@
 import { z } from 'zod';
 
-const emptyToUndefined = (value: unknown) => value === '' || value === null ? undefined : value;
+const emptyToUndefined = (value: unknown) =>
+  value === null || (typeof value === 'string' && value.trim() === '') ? undefined : value;
 
+// .optional() must sit inside z.preprocess: an empty field becomes undefined first,
+// and only then is it allowed to be missing. With .optional() outside, "" was
+// rejected as "must be a number" and the dashboard could not save the project.
 const projectMoney = (label: string) =>
   z.preprocess(
     emptyToUndefined,
     z.coerce.number({ invalid_type_error: `${label} must be a number` })
       .positive(`${label} must be greater than 0`)
       .max(999_999_999_999, `${label} is too large`)
-  ).optional();
+      .optional()
+  );
 
 const projectYear = z.preprocess(
   emptyToUndefined,
@@ -16,7 +21,8 @@ const projectYear = z.preprocess(
     .int('Year completed must be a whole year')
     .min(1900, 'Year completed must be 1900 or later')
     .max(new Date().getFullYear() + 20, 'Year completed is too far in the future')
-).optional();
+    .optional()
+);
 
 const projectDate = z.preprocess(emptyToUndefined, z.coerce.date().optional());
 
@@ -41,8 +47,20 @@ const baseProjectPayloadObject = z.object({
   result: z.string().optional(),
   galleryImages: z.array(z.string()).optional(),
   coordinates: z.object({
-    lat: z.preprocess(emptyToUndefined, z.coerce.number().optional()),
-    lng: z.preprocess(emptyToUndefined, z.coerce.number().optional()),
+    lat: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number({ invalid_type_error: 'Latitude must be a number' })
+        .min(-90, 'Latitude must be between -90 and 90')
+        .max(90, 'Latitude must be between -90 and 90')
+        .optional()
+    ),
+    lng: z.preprocess(
+      emptyToUndefined,
+      z.coerce.number({ invalid_type_error: 'Longitude must be a number' })
+        .min(-180, 'Longitude must be between -180 and 180')
+        .max(180, 'Longitude must be between -180 and 180')
+        .optional()
+    ),
   }).optional(),
 });
 

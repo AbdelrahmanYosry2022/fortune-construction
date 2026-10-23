@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, uploadMedia } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
 import { Loader2, Save, Plus, Trash2, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Card, Input, Textarea, MediaUploadField } from '@fortune/shared-ui'
@@ -225,7 +226,7 @@ export default function PageContentEditor() {
   const [activePage, setActivePage] = useState<PageKey>('home')
   const qc = useQueryClient()
 
-  const { data: pageData, isLoading } = useQuery<Record<string, Record<string, unknown>>>({
+  const { data: pageData, isLoading, error, refetch } = useQuery<Record<string, Record<string, unknown>>>({
     queryKey: ['pageContent', activePage],
     queryFn: () => api.get(`/content/${activePage}`).then(r => r.data),
   })
@@ -233,6 +234,10 @@ export default function PageContentEditor() {
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-sky-500 animate-spin" /></div>
 
   const sections = SECTION_CONFIG[activePage] || []
+  // Editors are only shown once this page's real data has loaded. If the first load failed,
+  // an editor would start empty and "Save" would wipe the section on the live site.
+  // (A failed background refetch keeps the last good data, so editing stays safe.)
+  const contentLoaded = pageData !== undefined
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -263,10 +268,21 @@ export default function PageContentEditor() {
       </div>
 
       {/* Sections */}
+      {!contentLoaded ? (
+        <DataUnavailableState
+          error={error}
+          onRetry={() => void refetch()}
+          resourceLabel="page content"
+          title="Page content could not be loaded"
+          message="Nothing can be edited until the current content loads, so existing sections are not overwritten. Please retry."
+        />
+      ) : (
       <div className="space-y-6">
         {sections.map(section => (
           <SectionEditor
-            key={section.label}
+            // The page is part of the key: each tab gets fresh editors with its own data,
+            // instead of reusing another tab's editor state and saving it to the wrong page.
+            key={`${activePage}:${section.label}`}
             page={activePage}
             sectionLabel={section.label}
             fields={section.fields}
@@ -275,6 +291,7 @@ export default function PageContentEditor() {
           />
         ))}
       </div>
+      )}
     </div>
   )
 }
