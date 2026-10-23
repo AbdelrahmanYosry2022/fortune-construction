@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HardHat, Loader2 } from 'lucide-react'
-import { api } from '../lib/api'
+import axios from 'axios'
+import { api, consumeSessionExpiredNotice } from '../lib/api'
 import { authStorage } from '../lib/auth'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import toast from 'react-hot-toast'
 import { useFormSchema, loginSchema, LoginFormData, FormInput, Form, Button } from '@fortune/shared-ui'
 
@@ -15,6 +17,12 @@ export default function Login() {
     defaultValues: { username: '', password: '' }
   })
 
+  useEffect(() => {
+    if (consumeSessionExpiredNotice()) {
+      toast.error('Your session has expired. Please sign in again.', { duration: 6000 })
+    }
+  }, [])
+
   const onSubmit = async (data: LoginFormData) => {
     setLoading(true)
     try {
@@ -23,8 +31,9 @@ export default function Login() {
       authStorage.setUser({ username: res.data.username })
       toast.success('Welcome back!')
       navigate('/')
-    } catch {
-      toast.error('Invalid username or password')
+    } catch (error) {
+      const wrongCredentials = axios.isAxiosError(error) && error.response?.status === 401
+      toast.error(wrongCredentials ? 'Invalid username or password' : getApiErrorMessage(error, 'Sign-in failed. Please try again.'))
     } finally {
       setLoading(false)
     }
@@ -96,12 +105,6 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Credentials Tip */}
-        <div className="mt-8 text-center animate-in fade-in slide-in-from-top-4 delay-500 duration-1000 fill-mode-both">
-          <p className="text-xs text-slate-600 font-medium">
-            Demo Credentials: <span className="text-slate-400 mx-1 underline decoration-teal-500/30 underline-offset-4 cursor-help" title="Username: admin / Password: admin123">Hover to reveal</span>
-          </p>
-        </div>
       </div>
     </div>
   )

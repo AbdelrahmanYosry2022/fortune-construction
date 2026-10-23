@@ -76,3 +76,23 @@ test('an invalid contact message returns 400 with the missing fields', async () 
     restoreAll(restores);
   }
 });
+
+test('a wrong value type in any other field returns 400 naming the field', async () => {
+  const restores = [
+    replaceStatic(Project, 'find', () => {
+      throw new mongoose.Error.CastError('Number', 'abc', 'yearCompleted');
+    }),
+  ];
+  const server = await createTestServer();
+
+  try {
+    const response = await fetch(`${server.baseUrl}/api/projects`);
+    const body = await readJson<{ code?: string; details?: Array<{ field?: string }> }>(response);
+    assert.equal(response.status, 400);
+    assert.equal(body.code, 'VALIDATION_ERROR');
+    assert.equal(body.details?.[0]?.field, 'yearCompleted');
+  } finally {
+    await server.close();
+    restoreAll(restores);
+  }
+});

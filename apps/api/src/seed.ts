@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { connectDB } from './config/db';
 import { safeLogger } from './utils/safeLogger';
+import { seedRefusalReason } from './utils/seedGuard';
 import Admin from './models/Admin';
 import Project from './models/Project';
 import Service from './models/Service';
@@ -11,7 +12,23 @@ import JobPosition from './models/JobPosition';
 import SiteSettings from './models/SiteSettings';
 
 async function seed() {
+  // The seed deletes existing content and creates admin/admin123: never on the live server.
+  const productionRefusal = seedRefusalReason({ nodeEnv: process.env.NODE_ENV, existingDocuments: 0 });
+  if (productionRefusal) {
+    safeLogger.error(productionRefusal);
+    process.exit(1);
+  }
+
   await connectDB();
+
+  // NODE_ENV alone is not enough (the server's .env may not set it), so also refuse
+  // whenever the database already has content, unless a wipe is requested explicitly.
+  const existingDocuments = (await Admin.countDocuments()) + (await Project.countDocuments());
+  const dataRefusal = seedRefusalReason({ nodeEnv: process.env.NODE_ENV, existingDocuments, allowWipe: process.env.SEED_ALLOW_WIPE });
+  if (dataRefusal) {
+    safeLogger.error(dataRefusal);
+    process.exit(1);
+  }
 
   await Admin.deleteMany({});
   await Admin.create({ username: 'admin', password: 'admin123' });

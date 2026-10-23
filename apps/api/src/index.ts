@@ -87,13 +87,16 @@ export function createApp(
   app.use('/api/project-categories', projectCategoryRoutes);
 
   app.get('/health', (_req, res) => {
-    const status = databaseStatus.ready ? 'ok' : 'degraded';
+    // Checked on every request: the JSON "status" turns "degraded" when the database drops
+    // after startup (the HTTP code stays 200 by contract, so monitors should check the body).
+    const databaseUp = databaseStatus.ready && (databaseStatus.isConnected ? databaseStatus.isConnected() : true);
+    const status = databaseUp ? 'ok' : 'degraded';
     res.json({
       status,
       timestamp: new Date().toISOString(),
       services: {
         api: 'ok',
-        database: databaseStatus.ready ? 'ok' : 'unavailable',
+        database: databaseUp ? 'ok' : 'unavailable',
       },
       mode: runtimeConfig.nodeEnv,
       database: {

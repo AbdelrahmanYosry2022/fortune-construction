@@ -103,9 +103,16 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
-  // A malformed id (e.g. /api/projects/not-an-id) cannot match any record.
+  // A malformed id (e.g. /api/projects/not-an-id) cannot match any record: 404.
+  // Any other field with a value of the wrong type is a bad request: 400 naming the field.
   if (error instanceof mongoose.Error.CastError) {
-    sendApiError(res, 404, 'Not found', 'NOT_FOUND');
+    if (error.path === '_id') {
+      sendApiError(res, 404, 'Not found', 'NOT_FOUND');
+    } else {
+      sendApiError(res, 400, 'Invalid request', 'VALIDATION_ERROR', [
+        { field: error.path, message: `Invalid value for ${error.path}` },
+      ]);
+    }
     return;
   }
 
