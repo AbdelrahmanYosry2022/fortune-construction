@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, resolveUploadUrl } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Trash2, ChevronDown, Search, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GlobalModal } from '@fortune/shared-ui'
@@ -20,19 +22,25 @@ export default function Applications() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
-  const { data: apps = [], isLoading } = useQuery<Application[]>({
+  const { data, isLoading, error, refetch } = useQuery<Application[]>({
     queryKey: ['applications', filterStatus],
     queryFn: () => api.get('/applications', { params: filterStatus ? { status: filterStatus } : {} }).then(r => r.data),
   })
+  const apps = useMemo(() => data ?? [], [data])
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  const loadFailed = !data
+  const deleteTarget = apps.find(a => a._id === deleteId)
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => api.patch(`/applications/${id}/status`, { status }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['applications'] }); qc.invalidateQueries({ queryKey: ['stats'] }); toast.success('Status updated') },
+    onError: (error) => toast.error(`Failed to update application status: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/applications/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['applications'] }); qc.invalidateQueries({ queryKey: ['stats'] }); toast.success('Deleted') },
+    onError: (error) => toast.error(`Failed to delete application: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search])
@@ -53,7 +61,7 @@ export default function Applications() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Job Applications</h1>
-          <p className="text-sm text-slate-500 mt-1">{apps.length} total applications found</p>
+          <p className="text-sm text-slate-500 mt-1">{loadFailed ? 'Applications could not be loaded' : `${apps.length} total applications found`}</p>
         </div>
       </div>
 
@@ -80,7 +88,15 @@ export default function Applications() {
 
       {/* Table Content */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
+        {loadFailed ? (
+          <DataUnavailableState
+            className="m-6"
+            resourceLabel="applications"
+            error={error}
+            message={`Could not load applications: ${getApiErrorMessage(error, 'please try again')}`}
+            onRetry={() => refetch()}
+          />
+        ) : filtered.length === 0 ? (
           <div className="px-6 py-20 text-center text-slate-400 dark:text-slate-600">
             <p className="mx-auto max-w-xs text-sm font-medium leading-6">
               No applications found matching your criteria
@@ -151,7 +167,8 @@ export default function Applications() {
                           </button>
                           <button
                             onClick={() => setDeleteId(a._id)}
-                            className="h-8 w-8 flex items-center justify-center bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-500 rounded-full transition-all"
+                            disabled={remove.isPending}
+                            className="h-8 w-8 flex items-center justify-center bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-rose-500 rounded-full transition-all disabled:opacity-50"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -195,7 +212,7 @@ export default function Applications() {
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Application"
-        description="Are you sure you want to delete this application? This action cannot be undone."
+        description={deleteTarget ? `Delete the application from “${deleteTarget.fullName}” (${deleteTarget.position})? This cannot be undone.` : 'Delete this application? This cannot be undone.'}
         type="destructive"
         actionText="Delete"
         onAction={() => {

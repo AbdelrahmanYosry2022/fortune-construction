@@ -4,6 +4,8 @@ import type { UseFormProps, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { AlertCircle, Loader2, X } from 'lucide-react'
+import { toast } from 'sonner'
+import { getApiErrorMessage } from './errorHandling'
 
 export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(' ')
@@ -372,6 +374,10 @@ export function MediaUploadField({ value = '', onChange, accept = 'any', label, 
     setUploading(true)
     try {
       onChange(await onUpload(file))
+    } catch (error) {
+      // Without this the failure was an unhandled rejection: the button just stopped spinning and nothing changed.
+      const kind = file.type.startsWith('video/') ? 'Video' : 'Image'
+      toast.error(`${kind} upload failed: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 })
     } finally {
       setUploading(false)
     }
@@ -387,7 +393,13 @@ export function MediaUploadField({ value = '', onChange, accept = 'any', label, 
             type="file"
             className="absolute inset-0 cursor-pointer opacity-0"
             accept={accept === 'video' ? 'video/*' : accept === 'image' ? 'image/*' : undefined}
-            onChange={(event) => handleFile(event.target.files?.[0])}
+            disabled={disabled || uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              // Reset so picking the same file again (e.g. retrying after a failed upload) fires onChange.
+              event.target.value = ''
+              void handleFile(file)
+            }}
           />
           {uploading ? 'Uploading...' : 'Upload'}
         </Button>

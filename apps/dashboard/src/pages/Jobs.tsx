@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, MapPin, Clock, ToggleLeft, ToggleRight, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -25,6 +27,7 @@ export default function Jobs() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deactivateJob, setDeactivateJob] = useState<Job | null>(null)
   const [reqInput, setReqInput] = useState('')
 
   const form = useFormSchema({
@@ -32,10 +35,14 @@ export default function Jobs() {
     defaultValues: EMPTY_FORM
   })
 
-  const { data: jobs = [], isLoading } = useQuery<Job[]>({
+  const { data, isLoading, error, refetch } = useQuery<Job[]>({
     queryKey: ['jobs-all'],
     queryFn: () => api.get('/jobs/all').then(r => r.data),
   })
+  const jobs = data ?? []
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  const loadFailed = !data
+  const deleteTarget = jobs.find(j => j._id === deleteId)
 
   const save = useMutation({
     mutationFn: (data: JobFormData) => 
@@ -45,7 +52,7 @@ export default function Jobs() {
       toast.success('Job saved successfully!')
       setModalOpen(false) 
     },
-    onError: () => toast.error('Failed to save job'),
+    onError: (error) => toast.error(`Failed to save job: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
@@ -54,11 +61,13 @@ export default function Jobs() {
       qc.invalidateQueries({ queryKey: ['jobs-all'] })
       toast.success('Job deleted') 
     },
+    onError: (error) => toast.error(`Failed to delete job: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const toggle = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => api.put(`/jobs/${id}`, { isActive }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['jobs-all'] }); toast.success('Status updated') },
+    onError: (error, { isActive }) => toast.error(`Failed to ${isActive ? 'activate' : 'deactivate'} job: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const openAdd = () => { 
@@ -105,12 +114,23 @@ export default function Jobs() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Job Positions</h1>
-          <p className="text-sm text-slate-500 mt-1">{jobs.filter(j => j.isActive).length} active · {jobs.length} total</p>
+          <p className="text-sm text-slate-500 mt-1">{loadFailed ? 'Job positions could not be loaded' : `${jobs.filter(j => j.isActive).length} active · ${jobs.length} total`}</p>
         </div>
-        <Button onClick={openAdd} className="shadow-lg shadow-teal-500/20">
-          <Plus className="w-4 h-4 mr-2" /> Add Position
-        </Button>
+        {!loadFailed && (
+          <Button onClick={openAdd} className="shadow-lg shadow-teal-500/20">
+            <Plus className="w-4 h-4 mr-2" /> Add Position
+          </Button>
+        )}
       </div>
+
+      {loadFailed && (
+        <DataUnavailableState
+          resourceLabel="job positions"
+          error={error}
+          message={`Could not load job positions: ${getApiErrorMessage(error, 'please try again')}`}
+          onRetry={() => refetch()}
+        />
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {jobs.map(j => (
@@ -124,7 +144,7 @@ export default function Jobs() {
                 </div>
               </div>
               <button
-                onClick={() => toggle.mutate({ id: j._id, isActive: !j.isActive })}
+                onClick={() => j.isActive ? setDeactivateJob(j) : toggle.mutate({ id: j._id, isActive: true })}
                 className={`flex-shrink-0 transition-all duration-300 ${j.isActive ? 'text-teal-500 hover:text-teal-600' : 'text-slate-300 hover:text-slate-400'} hover:scale-110`}
                 title={j.isActive ? 'Deactivate' : 'Activate'}
               >
@@ -144,7 +164,7 @@ export default function Jobs() {
               <Button variant="outline" onClick={() => openEdit(j)} className="flex-1 h-9 text-xs font-bold uppercase tracking-wider">
                 <Pencil className="w-3.5 h-3.5 mr-2" /> Edit
               </Button>
-              <Button variant="destructive" onClick={() => setDeleteId(j._id)} className="h-9 px-4">
+              <Button variant="destructive" onClick={() => setDeleteId(j._id)} disabled={remove.isPending} className="h-9 px-4">
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </div>
@@ -156,12 +176,25 @@ export default function Jobs() {
         open={!!deleteId}
         onOpenChange={(open) => !open && setDeleteId(null)}
         title="Delete Job"
-        description="Are you sure you want to delete this job position?"
+        description={deleteTarget ? `Delete “${deleteTarget.title}”? It will be removed from the careers page. This cannot be undone.` : 'Delete this job position? This cannot be undone.'}
         type="destructive"
         actionText="Delete"
         onAction={() => {
           if (deleteId) remove.mutate(deleteId)
           setDeleteId(null)
+        }}
+      />
+
+      <GlobalModal
+        open={!!deactivateJob}
+        onOpenChange={(open) => !open && setDeactivateJob(null)}
+        title="Deactivate Job"
+        description={`Deactivate “${deactivateJob?.title ?? ''}”? It will be hidden from the careers page until you activate it again.`}
+        type="destructive"
+        actionText="Deactivate"
+        onAction={() => {
+          if (deactivateJob) toggle.mutate({ id: deactivateJob._id, isActive: false })
+          setDeactivateJob(null)
         }}
       />
 

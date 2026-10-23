@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
+import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { getApiErrorMessage } from '../lib/errorHandling'
 import { Pencil, X, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { 
@@ -26,6 +28,7 @@ export default function Services() {
   const qc = useQueryClient()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [featInput, setFeatInput] = useState('')
 
   const form = useFormSchema({
@@ -33,10 +36,12 @@ export default function Services() {
     defaultValues: { title: '', description: '', features: [], tagline: '', bgImage: '', icon: '' }
   })
 
-  const { data: services = [], isLoading } = useQuery<Service[]>({
+  const { data, isLoading, error, refetch } = useQuery<Service[]>({
     queryKey: ['services'],
     queryFn: () => api.get('/services').then(r => r.data),
   })
+  const services = data ?? []
+  const deleteTarget = services.find(s => s._id === deleteId)
 
   const save = useMutation({
     mutationFn: (data: ServiceFormData) => 
@@ -46,7 +51,7 @@ export default function Services() {
       toast.success(editingId ? 'Service updated successfully!' : 'Service created successfully!')
       setModalOpen(false)
     },
-    onError: () => toast.error('Failed to save service'),
+    onError: (error) => toast.error(`Failed to save service: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const remove = useMutation({
@@ -55,6 +60,7 @@ export default function Services() {
       qc.invalidateQueries({ queryKey: ['services'] })
       toast.success('Service deleted successfully!')
     },
+    onError: (error) => toast.error(`Failed to delete service: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const openAdd = () => {
@@ -97,6 +103,26 @@ export default function Services() {
 
   if (isLoading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-sky-500 animate-spin" /></div>
 
+  // `!data`, not `isError`: a load paused while offline must not look like an empty list either.
+  if (!data) {
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Our Services</h1>
+            <p className="text-sm text-slate-500 mt-1">Manage the core service offerings and expertise displayed on the website.</p>
+          </div>
+        </div>
+        <DataUnavailableState
+          resourceLabel="services"
+          error={error}
+          message={`Could not load services: ${getApiErrorMessage(error, 'please try again')}`}
+          onRetry={() => refetch()}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
@@ -137,7 +163,7 @@ export default function Services() {
                 <Button variant="outline" onClick={() => openEdit(s)} className="h-10 px-5 text-xs font-bold uppercase tracking-wider w-full">
                   <Pencil className="w-4 h-4 mr-2" /> Edit
                 </Button>
-                <Button variant="destructive" onClick={() => remove.mutate(s._id)} className="h-10 px-5 text-xs font-bold uppercase tracking-wider w-full">
+                <Button variant="destructive" onClick={() => setDeleteId(s._id)} disabled={remove.isPending} className="h-10 px-5 text-xs font-bold uppercase tracking-wider w-full">
                   <X className="w-4 h-4 mr-2" /> Delete
                 </Button>
               </div>
@@ -145,6 +171,19 @@ export default function Services() {
           </Card>
         ))}
       </div>
+
+      <GlobalModal
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Service"
+        description={deleteTarget ? `Delete “${deleteTarget.title}”? This cannot be undone.` : 'Delete this service? This cannot be undone.'}
+        type="destructive"
+        actionText="Delete"
+        onAction={() => {
+          if (deleteId) remove.mutate(deleteId)
+          setDeleteId(null)
+        }}
+      />
 
       <GlobalModal
         open={modalOpen}
