@@ -3,6 +3,7 @@ import { useFieldArray } from 'react-hook-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, uploadImage } from '../lib/api'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
+import { PROJECT_TRASH_QUERY_KEY, ProjectTrashPanel, RecentlyDeletedButton } from '../components/projects/ProjectTrash'
 import { getApiErrorMessage } from '../lib/errorHandling'
 import { Plus, Pencil, Trash2, Loader2, MapPin, DollarSign, Clock, ImagePlus, X, ListPlus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -204,7 +205,8 @@ export default function Projects() {
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [trashTarget, setTrashTarget] = useState<{ id: string; title: string } | null>(null)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadingGallery, setUploadingGallery] = useState(false)
   const [galleryProgress, setGalleryProgress] = useState({ done: 0, total: 0 })
@@ -256,13 +258,16 @@ export default function Projects() {
     onError: (error) => toast.error(`Failed to save project: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
-  const remove = useMutation({
+  // DELETE /projects/:id only moves the project to the trash; it can be restored for 30 days.
+  const moveToTrash = useMutation({
     mutationFn: (id: string) => api.delete(`/projects/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
-      toast.success('Project deleted successfully')
+      qc.invalidateQueries({ queryKey: PROJECT_TRASH_QUERY_KEY })
+      qc.invalidateQueries({ queryKey: ['stats'] })
+      toast.success('Project moved to trash')
     },
-    onError: (error) => toast.error(`Failed to delete project: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
+    onError: (error) => toast.error(`Failed to move project to trash: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
 
   const openAdd = () => {
@@ -382,14 +387,17 @@ export default function Projects() {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-900 dark:text-white">Projects</h1>
           <p className="mt-1 text-sm text-slate-500">{projects.length} projects total</p>
         </div>
-        <Button onClick={openAdd} className="shadow-lg shadow-teal-500/20">
-          <Plus className="mr-2 h-4 w-4" /> Add Project
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <RecentlyDeletedButton onClick={() => setTrashOpen(true)} />
+          <Button onClick={openAdd} className="shadow-lg shadow-teal-500/20">
+            <Plus className="mr-2 h-4 w-4" /> Add Project
+          </Button>
+        </div>
       </div>
 
       {categoriesUnavailable && (
@@ -429,7 +437,13 @@ export default function Projects() {
                 <Button variant="outline" onClick={() => openEdit(project)} className="h-9 flex-1 text-xs font-bold uppercase tracking-wider">
                   <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
                 </Button>
-                <Button variant="destructive" onClick={() => setDeleteId(project._id)} className="h-9 px-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => setTrashTarget({ id: project._id, title: project.title })}
+                  className="h-9 px-4"
+                  aria-label={`Move ${project.title} to trash`}
+                  title="Move to trash"
+                >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -439,17 +453,19 @@ export default function Projects() {
       </div>
 
       <GlobalModal
-        open={!!deleteId}
-        onOpenChange={(open) => !open && setDeleteId(null)}
-        title="Delete Project"
-        description="Are you sure you want to delete this project? This action cannot be undone."
+        open={!!trashTarget}
+        onOpenChange={(open) => !open && setTrashTarget(null)}
+        title="Move project to trash"
+        description={trashTarget ? `Move “${trashTarget.title}” to the trash? You can restore it from Recently deleted for 30 days.` : undefined}
         type="destructive"
-        actionText="Delete"
+        actionText="Move to trash"
         onAction={() => {
-          if (deleteId) remove.mutate(deleteId)
-          setDeleteId(null)
+          if (trashTarget) moveToTrash.mutate(trashTarget.id)
+          setTrashTarget(null)
         }}
       />
+
+      <ProjectTrashPanel open={trashOpen} onOpenChange={setTrashOpen} />
 
       <GlobalModal open={modalOpen} onOpenChange={setModalOpen} title={editingId ? 'Edit Project' : 'Add Project'} type="custom">
         <Form {...form}>

@@ -15,8 +15,7 @@ test('projects public reads and dashboard writes preserve response shapes and st
     replaceStatic(Project, 'find', () => sortedResult([project])),
     replaceStatic(Project, 'findById', async () => project),
     replaceStatic(Project, 'create', async (body: object) => ({ ...created, ...body })),
-    replaceStatic(Project, 'findByIdAndUpdate', async (_id: string, body: object) => ({ ...updated, ...body })),
-    replaceStatic(Project, 'findByIdAndDelete', async () => project),
+    replaceStatic(Project, 'findByIdAndUpdate', async (_id: string, body: { $set?: object }) => ({ ...updated, ...body, ...body.$set })),
   ];
   const server = await createTestServer();
 
@@ -48,7 +47,11 @@ test('projects public reads and dashboard writes preserve response shapes and st
     assert.equal(updateBody.category, 'Bridges');
 
     const deleteResponse = await fetch(`${server.baseUrl}/api/projects/${project._id}`, { method: 'DELETE', headers: authHeader() });
-    assert.deepEqual(await readJson(deleteResponse), { message: 'Project deleted' });
+    // DELETE moves the project to the trash (restorable for 30 days) instead of deleting it.
+    const deleteBody = await readJson<Record<string, unknown>>(deleteResponse);
+    assert.equal(deleteResponse.status, 200);
+    assert.equal(deleteBody.message, 'Project moved to trash');
+    assert.equal(typeof deleteBody.deletedAt, 'string');
   } finally {
     await server.close();
     restoreAll(restores);

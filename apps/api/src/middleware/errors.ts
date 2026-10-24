@@ -103,6 +103,15 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
+  // express.json could not parse the body (malformed JSON, or a top-level value such as "x" or
+  // null that strict mode refuses): the client sent a bad request, not a server failure.
+  if ((error as { type?: unknown } | null)?.type === 'entity.parse.failed') {
+    sendApiError(res, 400, 'Invalid request', 'VALIDATION_ERROR', [
+      { message: 'Request body must be a valid JSON object or list' },
+    ]);
+    return;
+  }
+
   // A malformed id (e.g. /api/projects/not-an-id) cannot match any record: 404.
   // Any other field with a value of the wrong type is a bad request: 400 naming the field.
   if (error instanceof mongoose.Error.CastError) {
