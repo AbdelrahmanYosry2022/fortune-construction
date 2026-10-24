@@ -10,7 +10,7 @@ import { contactStructuredData, seoProfiles } from '@/lib/seo'
 import { usePageContent } from '@/hooks/usePageContent'
 
 interface SiteSettings {
-    companyName: string; tagline: string; phone: string; email: string; address: string;
+    companyName: string; tagline: string; phone: string; email: string; address: string; workingHoursDisplay: string;
 }
 
 interface ContactContent {
@@ -27,9 +27,11 @@ export default function ContactPage() {
     const { data: contactContent } = usePageContent<ContactContent>('contact')
     const hero = contactContent?.hero
 
-    const address = settings?.address || 'Area 4, Lilongwe, Malawi'
-    const phone = settings?.phone || '+265 1 75X XXX'
-    const email = settings?.email || 'info@fortuneconstruction.mw'
+    // Contact details come only from Site Settings; an empty value hides its row.
+    const address = settings?.address?.trim() || ''
+    const phone = settings?.phone?.trim() || ''
+    const email = settings?.email?.trim() || ''
+    const workingHours = settings?.workingHoursDisplay?.trim() || ''
 
     return (
         <div className="flex flex-col w-full bg-background min-h-screen">
@@ -37,8 +39,8 @@ export default function ContactPage() {
             <PageHero 
                 title={hero?.title || "Let's Build Something Together"}
                 description={hero?.description || "Ready to start your next infrastructure project? Get in touch with our team of experts today."}
-                imageSrc={hero?.image || "https://images.unsplash.com/photo-1545558014-8ab6aa17e307?q=80&w=2000&auto=format&fit=crop&fm=webp"}
-                imageAlt={hero?.title || "Construction site planning"}
+                imageSrc={hero?.image || "/assets/images/site/lunzu-05.webp"}
+                imageAlt={hero?.title || "Fortune Construction site works at Lunzu"}
             />
 
             {/* Main Content */}
@@ -76,8 +78,8 @@ export default function ContactPage() {
                                     { icon: <MapPin className="w-6 h-6" />, title: 'Corporate Headquarters', content: address },
                                     { icon: <Phone className="w-6 h-6" />, title: 'Strategic Inquiries', content: phone },
                                     { icon: <Mail className="w-6 h-6" />, title: 'Official Email', content: email },
-                                    { icon: <Clock className="w-6 h-6" />, title: 'Business Hours', content: <>Monday - Friday: 08:00 AM - 17:00 PM<br />Saturday: 08:00 AM - 12:00 PM</> },
-                                ].map((item, i) => (
+                                    { icon: <Clock className="w-6 h-6" />, title: 'Business Hours', content: workingHours },
+                                ].filter((item) => item.content).map((item, i) => (
                                     <motion.div 
                                         key={i}
                                         initial={{ opacity: 0, y: 10 }}

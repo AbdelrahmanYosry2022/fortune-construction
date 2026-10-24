@@ -16,31 +16,7 @@ interface SuccessStoriesContent {
     items?: Testimonial[];
 }
 
-const FALLBACK_PARTNERS = [
-    { name: 'Ministry of Public Works', abbr: 'MPW', color: '#1e3a5f' },
-    { name: 'African Development Bank', abbr: 'AfDB', color: '#c9a227' },
-    { name: 'World Bank Group', abbr: 'WBG', color: '#1e3a5f' },
-    { name: 'JICA Malawi', abbr: 'JICA', color: '#c9a227' },
-    { name: 'EU Development', abbr: 'EU', color: '#1e3a5f' },
-    { name: 'ROADS Authority', abbr: 'RA', color: '#c9a227' },
-]
-
 const COLORS = ['#1e3a5f', '#c9a227']
-
-const FALLBACK_STORIES: Testimonial[] = [
-    {
-        quote: 'Fortune Construction delivered our road rehabilitation project on time and to the highest standard. Their professionalism and technical capability is unmatched in Malawi.',
-        author: 'Principal Secretary',
-        org: 'Ministry of Transport, Malawi',
-        initials: 'PS',
-    },
-    {
-        quote: "The bridge project was complex, but Fortune's engineering team navigated every challenge with expertise. We've worked with them on three major contracts and they consistently exceed expectations.",
-        author: 'Regional Director',
-        org: 'Roads Authority, Malawi',
-        initials: 'RD',
-    },
-]
 
 function SuccessStoriesSlider({ stories }: { stories: Testimonial[] }) {
     const [current, setCurrent] = useState(0)
@@ -192,52 +168,59 @@ export default function Partners() {
     const { data: homeContent } = usePageContent<{ successStories?: SuccessStoriesContent }>('home')
     const content = homeContent?.successStories
 
-    const partners = apiPartners?.length
-        ? apiPartners.map((p, i) => ({ name: p.name, abbr: p.abbr, color: COLORS[i % COLORS.length], logo: p.logo }))
-        : FALLBACK_PARTNERS
+    // Only real records from the API/CMS are shown; no hard-coded sample content.
+    const partners = (apiPartners ?? []).map((p, i) => ({ name: p.name, abbr: p.abbr, color: COLORS[i % COLORS.length], logo: p.logo }))
 
-    const stories: Testimonial[] = content?.items?.length
-        ? content.items
-        : FALLBACK_STORIES
+    const stories: Testimonial[] = content?.items ?? []
+
+    if (partners.length === 0 && stories.length === 0) return null
 
     return (
         <section id="partners" className="relative section-padding bg-white dark:bg-slate-950 overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
-            
+
             <Container>
-                <SectionHeader
-                    subtitle="Trusted Partners"
-                    title="Strategic Institutional Alliances"
-                    description="We collaborate with Malawi's most influential government bodies, development banks, and international organizations."
-                />
+                {partners.length > 0 && (
+                    <>
+                        <SectionHeader
+                            subtitle="Trusted Partners"
+                            title="Strategic Institutional Alliances"
+                            description="We collaborate with Malawi's most influential government bodies, development banks, and international organizations."
+                        />
 
-                {/* Partners grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-32">
-                    {partners.map((partner, i) => (
-                        <PartnerLogo key={partner.name} partner={partner} index={i} />
-                    ))}
-                </div>
+                        {/* Partners grid */}
+                        <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 ${stories.length > 0 ? 'mb-32' : ''}`}>
+                            {partners.map((partner, i) => (
+                                <PartnerLogo key={partner.name} partner={partner} index={i} />
+                            ))}
+                        </div>
+                    </>
+                )}
 
-                {/* Success Stories Header */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    className="text-center mb-16"
-                >
-                    <span className="text-[10px] font-black tracking-[0.3em] uppercase text-teal-600 mb-4 block">
-                        {content?.subtitle || "Corporate Voice"}
-                    </span>
-                    <h3 className="text-3xl md:text-4xl font-display font-bold text-slate-900 dark:text-white">
-                        {content?.title || "Success Stories"}
-                    </h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-base mt-4 max-w-2xl mx-auto">
-                        {content?.description || "Hear what our clients and partners have to say about working with Fortune Construction."}
-                    </p>
-                </motion.div>
+                {stories.length > 0 && (
+                    <>
+                        {/* Success Stories Header */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="text-center mb-16"
+                        >
+                            <span className="text-[10px] font-black tracking-[0.3em] uppercase text-teal-600 mb-4 block">
+                                {content?.subtitle || "Corporate Voice"}
+                            </span>
+                            <h3 className="text-3xl md:text-4xl font-display font-bold text-slate-900 dark:text-white">
+                                {content?.title || "Success Stories"}
+                            </h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-base mt-4 max-w-2xl mx-auto">
+                                {content?.description || "Hear what our clients and partners have to say about working with Fortune Construction."}
+                            </p>
+                        </motion.div>
 
-                {/* Success Stories Slider */}
-                <SuccessStoriesSlider stories={stories} />
+                        {/* Success Stories Slider */}
+                        <SuccessStoriesSlider stories={stories} />
+                    </>
+                )}
             </Container>
         </section>
     )

@@ -14,10 +14,10 @@ export function FooterMap() {
         staleTime: 60_000,
     })
 
-    const address = settings?.address || SITE.address
-    const phone = settings?.phone || SITE.phone
-    const email = settings?.email || SITE.email
-    const companyName = settings?.companyName || SITE.name
+    // Contact details come only from Site Settings; an empty value hides its item.
+    const address = settings?.address?.trim() || ''
+    const phone = settings?.phone?.trim() || ''
+    const email = settings?.email?.trim() || ''
 
     return (
         <div className="bg-slate-900 dark:bg-black border-b border-white/5">
@@ -39,7 +39,7 @@ export function FooterMap() {
                             { icon: <MapPin className="w-5 h-5" />, label: 'Physical Address', value: address, href: SITE.mapsUrl },
                             { icon: <Phone className="w-5 h-5" />, label: 'Direct Line', value: phone, href: `tel:${phone.replace(/\s/g, '')}` },
                             { icon: <Mail className="w-5 h-5" />, label: 'Support Email', value: email, href: `mailto:${email}` },
-                        ].map((item, i) => (
+                        ].filter((item) => item.value).map((item, i) => (
                             <a 
                                 key={i}
                                 href={item.href || '#'} 

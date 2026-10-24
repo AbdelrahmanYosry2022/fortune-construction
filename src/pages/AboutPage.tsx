@@ -8,16 +8,6 @@ import { ReactNode } from 'react'
 import { SeoHead } from '@/components/SeoHead'
 import { seoProfiles } from '@/lib/seo'
 
-function EmptyState({ icon: Icon, title, description }: { icon?: any, title: string, description?: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      {Icon && <div className="mb-4 text-gray-400"><Icon className="w-16 h-16" /></div>}
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">{title}</h3>
-      {description && <p className="text-gray-600 max-w-md mb-6">{description}</p>}
-    </div>
-  )
-}
-
 interface ApiTeamMember {
     _id: string;
     name: string;
@@ -84,8 +74,6 @@ export default function AboutPage() {
     const timelineItems = timeline?.items?.length ? timeline.items : [
         { year: '2006', title: 'Company Founded', desc: 'Established in Lilongwe as a specialized contractor for residential projects.' },
         { year: '2012', title: 'First Government Contract', desc: 'Awarded a major road infrastructure project, marking our entry into the public sector.' },
-        { year: '2018', title: 'ISO Certification', desc: 'Achieved international recognition for quality management and safety standards.' },
-        { year: '2026', title: 'National Leader', desc: 'Celebrating 20 years with over 150 completed landmark projects across Malawi.' }
     ]
 
     const valueItems = coreValues?.items?.length ? coreValues.items : [
@@ -102,7 +90,7 @@ export default function AboutPage() {
             <PageHero 
                 title={hero?.title || <>Two Decades of Building <span className="text-teal-500">Malawi's Future</span></>}
                 description={hero?.description || "Since 2006, Fortune Construction has been a cornerstone of infrastructure development, delivering excellence through engineering precision and unwavering commitment to safety."}
-                imageSrc={hero?.image || "https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp"}
+                imageSrc={hero?.image || "/assets/images/site/lunzu-02.webp"}
                 imageAlt={hero?.title || "Construction in Malawi"}
             />
 
@@ -255,17 +243,17 @@ export default function AboutPage() {
                 </div>
             </section>
 
-            {/* Leadership Team */}
-            <section className="relative section-padding bg-white dark:bg-slate-950 overflow-hidden">
-                <div className="max-w-7xl mx-auto px-6">
-                    <div className="text-center mb-20">
-                        <div className="inline-block w-12 h-1 bg-teal-500 rounded-full mb-6 mx-auto" />
-                        <h2 className="text-4xl font-display font-bold text-slate-900 dark:text-white mb-6">Our Leadership</h2>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-light leading-relaxed text-lg">
-                            An elite team of experienced professionals committed to delivering engineering excellence in every project across Malawi.
-                        </p>
-                    </div>
-                    {leaders.length > 0 ? (
+            {/* Leadership Team (only real members from GET /team; hidden when empty) */}
+            {leaders.length > 0 && (
+                <section className="relative section-padding bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="max-w-7xl mx-auto px-6">
+                        <div className="text-center mb-20">
+                            <div className="inline-block w-12 h-1 bg-teal-500 rounded-full mb-6 mx-auto" />
+                            <h2 className="text-4xl font-display font-bold text-slate-900 dark:text-white mb-6">Our Leadership</h2>
+                            <p className="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto font-light leading-relaxed text-lg">
+                                An elite team of experienced professionals committed to delivering engineering excellence in every project across Malawi.
+                            </p>
+                        </div>
                         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-10">
                             {leaders.map((leader: any, idx: number) => (
                                 <motion.div 
@@ -320,17 +308,9 @@ export default function AboutPage() {
                                 </motion.div>
                             ))}
                         </div>
-                    ) : (
-                        <div className="bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-20">
-                            <EmptyState
-                                icon={Users}
-                                title="Leadership Profiles Pending"
-                                description="The team member profiles are currently being updated. Please check back soon."
-                            />
-                        </div>
-                    )}
-                </div>
-            </section>
+                    </div>
+                </section>
+            )}
         </div>
     )
 }

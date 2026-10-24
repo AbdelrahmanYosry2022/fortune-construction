@@ -27,20 +27,14 @@ const COLORS = ['bg-teal-600', 'bg-slate-900', 'bg-teal-500', 'bg-slate-800']
 interface ApiMetric { target: number; suffix: string; label: string; description: string; icon: string }
 interface ImpactContent { title?: string; subtitle?: string; description?: string; items?: ApiMetric[] }
 
-const FALLBACK_METRICS = [
-    { icon: 'Route', target: 1500, suffix: '+', label: 'KM of Roads Paved', description: 'Connecting communities across all regions of Malawi with durable, engineered roads.' },
-    { icon: 'Home', target: 2000, suffix: '+', label: 'Families Housed', description: 'Quality residential and social housing projects delivered on time and on budget.' },
-    { icon: 'Clock', target: 20, suffix: '+', label: 'Years of Experience', description: 'Two decades of expertise in civil, structural, and commercial construction.' },
-    { icon: 'CheckCircle', target: 500, suffix: '+', label: 'Successful Projects', description: 'A proven track record of successful delivery for government and private clients.' },
-]
-
 export default function Impact() {
     const sectionRef = useRef<HTMLElement>(null)
     const [isVisible, setIsVisible] = useState(false)
     const { data: homeContent } = usePageContent<{ impactMetrics?: ImpactContent }>('home')
 
+    // Metrics come only from home page content; the whole section is hidden when there are none.
     const content = homeContent?.impactMetrics
-    const items = content?.items?.length ? content.items : FALLBACK_METRICS
+    const items = content?.items ?? []
 
     const metrics = items.map((m: ApiMetric, i: number) => ({
         icon: renderMetricIcon(m.icon),
@@ -50,8 +44,11 @@ export default function Impact() {
         description: m.description,
         color: COLORS[i % COLORS.length],
     }))
+    const hasMetrics = metrics.length > 0
 
     useEffect(() => {
+        // The section only mounts once metrics have loaded, so (re)attach the observer then.
+        if (!hasMetrics) return
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (entry.isIntersecting) {
@@ -63,7 +60,9 @@ export default function Impact() {
         )
         if (sectionRef.current) observer.observe(sectionRef.current)
         return () => observer.disconnect()
-    }, [])
+    }, [hasMetrics])
+
+    if (!hasMetrics) return null
 
     return (
         <section id="impact" ref={sectionRef} className="relative section-padding overflow-hidden">

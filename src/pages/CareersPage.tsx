@@ -74,8 +74,8 @@ export default function CareersPage() {
             <PageHero 
                 title={hero?.title || <>Build Your Future with <span className="text-teal-500">Fortune</span></>}
                 description={hero?.description || "Join a team of driven professionals dedicated to engineering excellence. We don't just build infrastructure; we build careers."}
-                imageSrc={hero?.image || "https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp"}
-                imageAlt={hero?.title || "Engineers working together"}
+                imageSrc={hero?.image || "/assets/images/site/lunzu-06.webp"}
+                imageAlt={hero?.title || "Fortune Construction team on site at Lunzu"}
             />
 
             {/* Benefits */}

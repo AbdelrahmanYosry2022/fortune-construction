@@ -1,4 +1,4 @@
-import { projectsData } from '@/data/projects'
+import { projectVisualFallback } from '@/lib/visualFallbacks'
 
 export type ProjectStatus = 'Ongoing' | 'Completed'
 
@@ -157,6 +157,7 @@ export function normalizeProject(project: RawProject): ProjectRecord {
     const status = getStatus(project.status, project.endDate)
     const scope = asArray(project.scopeOfWork)
     const technologies = [...asArray(project.technologies), ...asArray(project.methodsUsed)]
+    const coverImage = project.coverImage || project.image || projectVisualFallback(category)
 
     return {
         _id: project._id || project.id || project.title,
@@ -175,12 +176,10 @@ export function normalizeProject(project: RawProject): ProjectRecord {
         challenge: project.challenge || 'The project required careful coordination across site logistics, stakeholder expectations, material delivery, and quality controls.',
         solution: project.solution || 'Fortune Construction applied structured planning, experienced site supervision, and disciplined engineering controls to keep delivery aligned with programme, safety, and quality targets.',
         result: project.result || 'The completed work strengthened local infrastructure, improved usability, and created a durable asset for the client and surrounding communities.',
-        coverImage: project.coverImage || project.image || 'https://images.unsplash.com/photo-1545558014-8ab6aa17e307?q=80&w=1600&auto=format&fit=crop&fm=webp',
-        galleryImages: project.galleryImages?.length ? project.galleryImages : [project.coverImage || project.image || 'https://images.unsplash.com/photo-1545558014-8ab6aa17e307?q=80&w=1600&auto=format&fit=crop&fm=webp'],
+        coverImage,
+        galleryImages: project.galleryImages?.length ? project.galleryImages : [coverImage],
         startDate: project.startDate,
         endDate: project.endDate,
         coordinates: getCoordinates(project),
     }
 }
-
-export const fallbackProjects = projectsData.map((project) => normalizeProject(project))

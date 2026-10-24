@@ -40,19 +40,11 @@ export default function HSEPage() {
         { title: 'Environmental Policy', description: "Dedicated to preserving Malawi's natural beauty, we minimize construction waste, optimize resource efficiency, and actively implement sustainable building practices.", icon: 'Leaf' },
     ]
 
-    const stats = hseContent?.safetyStats?.items?.length ? hseContent.safetyStats.items : [
-        { value: '1M+', label: 'Man-hours Without LTI' },
-        { value: '100%', label: 'Workers HSE Certified' },
-        { value: 'ISO', label: '9001:2015 Compliant' },
-    ]
+    // Safety stats and certifications come only from page content; each block is hidden when empty.
+    const stats = hseContent?.safetyStats?.items ?? []
 
     const certs = hseContent?.certifications
-    const certItems = certs?.items?.length ? certs.items : [
-        { title: 'ISO 9001:2015' },
-        { title: 'ISO 14001:2015' },
-        { title: 'ISO 45001:2018' },
-        { title: 'NEBOSH Certified' },
-    ]
+    const certItems = certs?.items ?? []
 
     const hero = hseContent?.hero
 
@@ -92,105 +84,90 @@ export default function HSEPage() {
             </section>
 
             {/* Safety Stats Banner */}
-            <section className="py-24 bg-slate-900 dark:bg-black text-white relative overflow-hidden dark">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
-                <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900 opacity-60" />
-                
-                <Container className="relative z-10">
-                    <div className={`grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8 divide-y md:divide-y-0 md:divide-x divide-white/10 text-center`}>
-                        {stats.map((stat: any, idx: number) => (
-                            <motion.div 
-                                key={idx} 
-                                initial={{ opacity: 0, scale: 0.9 }} 
-                                whileInView={{ opacity: 1, scale: 1 }} 
-                                viewport={{ once: true }} 
-                                transition={{ duration: 0.6, delay: idx * 0.1 }} 
-                                className="pt-8 md:pt-0"
-                            >
-                                <div className="text-6xl md:text-7xl font-display font-black text-teal-400 mb-4 tracking-tighter drop-shadow-2xl">{stat.value}</div>
-                                <div className="text-[10px] tracking-[0.3em] uppercase text-teal-50/50 font-black">{stat.label}</div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </Container>
-            </section>
+            {stats.length > 0 && (
+                <section className="py-24 bg-slate-900 dark:bg-black text-white relative overflow-hidden dark">
+                    <div className="absolute inset-0 bg-[url('/assets/images/site/lunzu-03.webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
+                    <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-transparent to-slate-900 opacity-60" />
+
+                    <Container className="relative z-10">
+                        <div className={`grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-8 divide-y md:divide-y-0 md:divide-x divide-white/10 text-center`}>
+                            {stats.map((stat: any, idx: number) => (
+                                <motion.div
+                                    key={idx}
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    whileInView={{ opacity: 1, scale: 1 }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 0.6, delay: idx * 0.1 }}
+                                    className="pt-8 md:pt-0"
+                                >
+                                    <div className="text-6xl md:text-7xl font-display font-black text-teal-400 mb-4 tracking-tighter drop-shadow-2xl">{stat.value}</div>
+                                    <div className="text-[10px] tracking-[0.3em] uppercase text-teal-50/50 font-black">{stat.label}</div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </Container>
+                </section>
+            )}
 
             {/* Certifications */}
-            <section className="relative section-padding bg-white dark:bg-slate-950 overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
-                <Container>
-                    <div className="max-w-4xl mx-auto text-center mb-24">
-                        <motion.span 
-                            initial={{ opacity: 0 }}
-                            whileInView={{ opacity: 1 }}
-                            className="inline-block px-4 py-1.5 mb-6 text-[10px] font-black tracking-[0.2em] uppercase text-teal-600 bg-teal-50 dark:bg-teal-900/20 rounded-full"
-                        >
-                            {certs?.subtitle || "Recognized Excellence"}
-                        </motion.span>
-                        <h2 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white mb-8">{certs?.title || "Our Accreditations"}</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-lg font-light leading-relaxed">
-                            {certs?.description || "Fortune Construction operates strictly according to elite international standards for quality management, environmental sustainability, and occupational safety."}
-                        </p>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
-                        {certItems.map((cert: any, i: number) => (
-                            <motion.div 
-                                key={i}
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: i * 0.1 }}
-                                whileHover={{ y: -5 }}
-                                className="aspect-square bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-center p-10 shadow-sm hover:shadow-2xl hover:border-teal-500/30 transition-all duration-500 group relative overflow-hidden"
+            {certItems.length > 0 && (
+                <section className="relative section-padding bg-white dark:bg-slate-950 overflow-hidden">
+                    <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
+                    <Container>
+                        <div className="max-w-4xl mx-auto text-center mb-24">
+                            <motion.span
+                                initial={{ opacity: 0 }}
+                                whileInView={{ opacity: 1 }}
+                                className="inline-block px-4 py-1.5 mb-6 text-[10px] font-black tracking-[0.2em] uppercase text-teal-600 bg-teal-50 dark:bg-teal-900/20 rounded-full"
                             >
-                                <div className="absolute top-0 left-0 w-full h-1 bg-teal-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
-                                <div className="text-center">
-                                    <div className="relative mb-6">
-                                        <div className="absolute inset-0 bg-teal-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                        {cert.image && isImageUrl(cert.image) ? (
-                                            <img src={cert.image} alt={cert.title} className="w-16 h-16 mx-auto object-contain relative z-10" />
-                                        ) : cert.image ? (
-                                            <div className="w-16 h-16 mx-auto flex items-center justify-center relative z-10 text-slate-300 group-hover:text-teal-500 transition-colors duration-500">
-                                                {renderPolicyIcon(cert.image)}
-                                            </div>
-                                        ) : (
-                                            <Award className="w-16 h-16 mx-auto text-slate-300 dark:text-slate-700 group-hover:text-teal-500 transition-colors duration-500 relative z-10" />
-                                        )}
-                                    </div>
-                                    <span className="font-bold text-[10px] text-slate-400 dark:text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white uppercase tracking-[0.2em] transition-colors duration-500">{cert.title}</span>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </Container>
-            </section>
+                                {certs?.subtitle || "Recognized Excellence"}
+                            </motion.span>
+                            <h2 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white mb-8">{certs?.title || "Our Accreditations"}</h2>
+                            {certs?.description && (
+                                <p className="text-slate-500 dark:text-slate-400 text-lg font-light leading-relaxed">
+                                    {certs.description}
+                                </p>
+                            )}
+                        </div>
 
-            {/* Partners Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
+                            {certItems.map((cert: any, i: number) => (
+                                <motion.div
+                                    key={i}
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ delay: i * 0.1 }}
+                                    whileHover={{ y: -5 }}
+                                    className="aspect-square bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-center p-10 shadow-sm hover:shadow-2xl hover:border-teal-500/30 transition-all duration-500 group relative overflow-hidden"
+                                >
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-teal-500 scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left" />
+                                    <div className="text-center">
+                                        <div className="relative mb-6">
+                                            <div className="absolute inset-0 bg-teal-500/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                            {cert.image && isImageUrl(cert.image) ? (
+                                                <img src={cert.image} alt={cert.title} className="w-16 h-16 mx-auto object-contain relative z-10" />
+                                            ) : cert.image ? (
+                                                <div className="w-16 h-16 mx-auto flex items-center justify-center relative z-10 text-slate-300 group-hover:text-teal-500 transition-colors duration-500">
+                                                    {renderPolicyIcon(cert.image)}
+                                                </div>
+                                            ) : (
+                                                <Award className="w-16 h-16 mx-auto text-slate-300 dark:text-slate-700 group-hover:text-teal-500 transition-colors duration-500 relative z-10" />
+                                            )}
+                                        </div>
+                                        <span className="font-bold text-[10px] text-slate-400 dark:text-slate-500 group-hover:text-slate-900 dark:group-hover:text-white uppercase tracking-[0.2em] transition-colors duration-500">{cert.title}</span>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </Container>
+                </section>
+            )}
+
+            {/* Partners Grid (renders nothing when there are no partners in the database) */}
             <PartnersSection variant="detailed" />
 
-            {/* Download Policy */}
-            <section className="relative py-32 px-6 overflow-hidden">
-                <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900/50 -z-10" />
-                <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent" />
-                
-                <div className="max-w-4xl mx-auto text-center relative">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 mb-10 text-teal-500">
-                        <Download className="w-8 h-8" />
-                    </div>
-                    <h2 className="text-4xl md:text-5xl font-display font-bold text-slate-900 dark:text-white mb-8 tracking-tight">Review Our Full HSE Policy</h2>
-                    <p className="text-slate-500 dark:text-slate-400 mb-12 text-lg font-light leading-relaxed max-w-2xl mx-auto">
-                        Operational transparency is a pillar of our corporate identity. Download our comprehensive Health, Safety, and Environmental framework.
-                    </p>
-                    <motion.button 
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="inline-flex items-center justify-center h-16 px-10 bg-teal-600 hover:bg-teal-700 text-white font-bold uppercase tracking-widest text-sm rounded-full shadow-xl shadow-teal-500/20 transition-all"
-                    >
-                        <Download className="w-5 h-5 mr-3" /> Download Policy Framework (PDF)
-                    </motion.button>
-                </div>
-            </section>
+            {/* "Download Policy Framework (PDF)" section removed: there is no PDF to download. */}
         </div>
     )
 }

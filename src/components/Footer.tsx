@@ -2,7 +2,6 @@ import { Facebook, Twitter, Linkedin, Youtube } from 'lucide-react'
 import { Container } from '@fortune/shared-ui'
 import { FooterMap } from './footer/FooterMap'
 import { FooterLinks } from './footer/FooterLinks'
-import { Newsletter } from './footer/Newsletter'
 import { SITE } from '@/lib/constants'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiClient'
@@ -12,7 +11,8 @@ interface SiteSettings {
     foundedYear: number; socialFacebook: string; socialTwitter: string; socialLinkedin: string; socialYoutube: string;
 }
 
-const LEGAL_LINKS = ['Privacy Policy', 'Terms of Service', 'Sitemap']
+// Privacy Policy and Terms of Service stay hidden until those pages exist.
+const LEGAL_LINKS = [{ label: 'Sitemap', href: '/sitemap.xml' }]
 
 export default function Footer() {
     const { data: settings } = useQuery<SiteSettings>({
@@ -41,7 +41,7 @@ export default function Footer() {
             {/* Main footer content */}
             <div className="relative z-10 pt-24 pb-12">
                 <Container>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 lg:gap-12 mb-20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-16 lg:gap-12 mb-20">
                         {/* Brand Column */}
                         <div className="lg:col-span-1">
                             <div className="flex items-center mb-10 group">
@@ -79,8 +79,7 @@ export default function Footer() {
                         {/* Links Columns */}
                         <FooterLinks />
 
-                        {/* Intelligence Subscription */}
-                        <Newsletter />
+                        {/* Newsletter stays hidden until there is a backend that stores subscriptions. */}
                     </div>
 
                     {/* Bottom Legal Bar */}
@@ -97,12 +96,13 @@ export default function Footer() {
                         
                         <div className="flex gap-8">
                             {LEGAL_LINKS.map((link) => (
-                                <button 
-                                    key={link} 
+                                <a
+                                    key={link.label}
+                                    href={link.href}
                                     className="text-slate-500 hover:text-teal-500 text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 hover:translate-y-[-1px]"
                                 >
-                                    {link}
-                                </button>
+                                    {link.label}
+                                </a>
                             ))}
                         </div>
                     </div>

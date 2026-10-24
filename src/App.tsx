@@ -7,22 +7,19 @@ import Impact from '@/components/Impact'
 import Services from '@/components/Services'
 import Partners from '@/components/Partners'
 import { apiFetch } from '@/lib/apiClient'
-import { projectsData } from '@/data/projects'
 import { Image, Button } from '@fortune/shared-ui'
 import { normalizeProject, RawProject } from '@/lib/projectPresentation'
 import { SeoHead } from '@/components/SeoHead'
 import { organizationStructuredData, seoProfiles } from '@/lib/seo'
 
 function App() {
-    const { data: apiProjects } = useQuery<RawProject[]>({
+    const { data: apiProjects, isLoading: projectsLoading } = useQuery<RawProject[]>({
         queryKey: ['projects'],
         queryFn: () => apiFetch<RawProject[]>('/projects'),
         staleTime: 60_000,
     })
 
-    const featuredProjects = apiProjects?.length
-        ? apiProjects.slice(0, 3).map(normalizeProject)
-        : projectsData.slice(0, 3).map(normalizeProject)
+    const featuredProjects = (apiProjects ?? []).slice(0, 3).map(normalizeProject)
 
     return (
         <div className="flex flex-col w-full bg-background">
@@ -33,7 +30,7 @@ function App() {
             
             {/* About Teaser Section */}
             <section className="relative section-padding overflow-hidden bg-slate-900 dark:bg-black text-white dark">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
+                <div className="absolute inset-0 bg-[url('/assets/images/site/lunzu-03.webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
                 <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-900/40 to-transparent opacity-80" />
                 
                 <div className="max-w-7xl mx-auto px-6 flex flex-col lg:flex-row items-center gap-16 lg:gap-24 relative z-10">
@@ -118,59 +115,69 @@ function App() {
                         </Link>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        {featuredProjects.map((project, i) => (
-                            <motion.div 
-                                key={project._id} 
-                                initial={{ opacity: 0, y: 20 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.6, delay: i * 0.1 }}
-                                className="group overflow-hidden border border-slate-200 bg-white shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:hover:shadow-black/30"
-                            >
-                                <div className="aspect-[4/3] relative overflow-hidden">
-                                    <Image 
-                                        src={project.coverImage} 
-                                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                                        alt={project.title}
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-8">
-                                        <Link to={`/projects/${project._id}`} className="text-white font-black tracking-[0.2em] uppercase text-[10px] flex items-center group/link">
-                                            View Case Study <ArrowRight className="w-3.5 h-3.5 ml-2 transform group-hover/link:translate-x-1 transition-transform" />
-                                        </Link>
-                                    </div>
-                                    <div className="absolute top-5 left-5 flex flex-wrap gap-2">
-                                        <span className="bg-teal-500 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-xl">
-                                            {project.category}
-                                        </span>
-                                        <span className="bg-white/95 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-950 shadow-xl">
-                                            {project.status}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="p-7 flex flex-col flex-grow relative">
-                                    <div className="absolute top-0 left-7 w-12 h-1 bg-teal-500 -translate-y-full" />
-                                    <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-5 group-hover:text-teal-600 transition-colors">
-                                        {project.title}
-                                    </h3>
-                                    <div className="grid grid-cols-2 gap-4 border-y border-slate-100 py-5 text-xs dark:border-slate-800">
-                                        <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Value</div>
-                                            <div className="mt-1 font-bold text-slate-900 dark:text-white">{project.projectValue}</div>
+                    {!projectsLoading && featuredProjects.length === 0 && (
+                        <div className="border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
+                            <p className="text-base leading-8 text-slate-500 dark:text-slate-400">
+                                Our project portfolio is being updated.
+                            </p>
+                        </div>
+                    )}
+
+                    {featuredProjects.length > 0 && (
+                        <div className="grid md:grid-cols-3 gap-8">
+                            {featuredProjects.map((project, i) => (
+                                <motion.div 
+                                    key={project._id} 
+                                    initial={{ opacity: 0, y: 20 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ duration: 0.6, delay: i * 0.1 }}
+                                    className="group overflow-hidden border border-slate-200 bg-white shadow-sm transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900 dark:hover:shadow-black/30"
+                                >
+                                    <div className="aspect-[4/3] relative overflow-hidden">
+                                        <Image 
+                                            src={project.coverImage} 
+                                            className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                                            alt={project.title}
+                                        />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-8">
+                                            <Link to={`/projects/${project._id}`} className="text-white font-black tracking-[0.2em] uppercase text-[10px] flex items-center group/link">
+                                                View Case Study <ArrowRight className="w-3.5 h-3.5 ml-2 transform group-hover/link:translate-x-1 transition-transform" />
+                                            </Link>
                                         </div>
-                                        <div>
-                                            <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Year</div>
-                                            <div className="mt-1 font-bold text-slate-900 dark:text-white">{project.yearCompleted}</div>
+                                        <div className="absolute top-5 left-5 flex flex-wrap gap-2">
+                                            <span className="bg-teal-500 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-xl">
+                                                {project.category}
+                                            </span>
+                                            <span className="bg-white/95 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-950 shadow-xl">
+                                                {project.status}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="mt-5 flex items-center text-slate-500 dark:text-slate-400 text-sm font-medium">
-                                        <MapPin className="w-4 h-4 mr-2 shrink-0 text-teal-500" />
-                                        <span>{project.location}</span>
+                                    <div className="p-7 flex flex-col flex-grow relative">
+                                        <div className="absolute top-0 left-7 w-12 h-1 bg-teal-500 -translate-y-full" />
+                                        <h3 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-5 group-hover:text-teal-600 transition-colors">
+                                            {project.title}
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-4 border-y border-slate-100 py-5 text-xs dark:border-slate-800">
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Value</div>
+                                                <div className="mt-1 font-bold text-slate-900 dark:text-white">{project.projectValue}</div>
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Year</div>
+                                                <div className="mt-1 font-bold text-slate-900 dark:text-white">{project.yearCompleted}</div>
+                                            </div>
+                                        </div>
+                                        <div className="mt-5 flex items-center text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                            <MapPin className="w-4 h-4 mr-2 shrink-0 text-teal-500" />
+                                            <span>{project.location}</span>
+                                        </div>
                                     </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </section>
 
@@ -178,7 +185,7 @@ function App() {
 
             {/* Contact Call to Action */}
             <section className="relative py-32 px-6 overflow-hidden bg-[#06162d] text-white dark">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
+                <div className="absolute inset-0 bg-[url('/assets/images/site/lunzu-06.webp')] bg-cover bg-center opacity-10 mix-blend-overlay scale-110" />
                 <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-teal-500/30 to-transparent" />
                 
                 <motion.div 

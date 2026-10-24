@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 export function ImpactCTA() {
     return (
         <div className="mt-24 bg-slate-900 dark:bg-black rounded-[2.5rem] p-10 md:p-16 flex flex-col lg:flex-row items-center justify-between gap-10 relative overflow-hidden group shadow-2xl">
-            <div className="absolute top-0 left-0 w-full h-full bg-[url('https://images.unsplash.com/photo-1541888086925-920a0f6707dd?q=80&w=2000&auto=format&fit=crop&fm=webp')] bg-cover bg-center opacity-5 mix-blend-overlay scale-110 group-hover:scale-100 transition-transform duration-1000" />
+            <div className="absolute top-0 left-0 w-full h-full bg-[url('/assets/images/site/lunzu-04.webp')] bg-cover bg-center opacity-5 mix-blend-overlay scale-110 group-hover:scale-100 transition-transform duration-1000" />
             <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
             
             <div className="relative z-10 text-center lg:text-left">

@@ -20,11 +20,22 @@ export interface ISiteSettings extends Document {
   workingHoursDisplay: string;
 }
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const SiteSettingsSchema = new Schema<ISiteSettings>({
   companyName: { type: String, default: 'Fortune Construction' },
   tagline: { type: String, default: "Malawi's premier construction company." },
-  phone: { type: String, default: '+265 1 234 5678' },
-  email: { type: String, default: 'info@fortuneconstruction.mw' },
+  // Phone and email are optional: the public site hides them when they are empty.
+  phone: { type: String, trim: true, default: '' },
+  email: {
+    type: String,
+    trim: true,
+    default: '',
+    validate: {
+      validator: (value: string) => !value || EMAIL_PATTERN.test(value),
+      message: 'email must be valid',
+    },
+  },
   address: { type: String, default: 'Area 4, Lilongwe, Malawi' },
   foundedYear: { type: Number, default: 2004 },
   heroTitle: { type: String, default: 'Crafting Visionary Infrastructure.' },
@@ -39,5 +50,10 @@ const SiteSettingsSchema = new Schema<ISiteSettings>({
   workingHoursEnd: { type: String, default: '17:00' },
   workingHoursDisplay: { type: String, default: 'Mon – Fri: 7:30am – 5:00pm' },
 }, { timestamps: true });
+
+// The dashboard saves settings with findByIdAndUpdate, which skips validators unless asked.
+SiteSettingsSchema.pre('findOneAndUpdate', function () {
+  this.setOptions({ runValidators: true });
+});
 
 export default mongoose.model<ISiteSettings>('SiteSettings', SiteSettingsSchema);
