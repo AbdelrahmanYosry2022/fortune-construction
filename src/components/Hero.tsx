@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { ArrowDown, PlayCircle } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button, Badge } from '@fortune/shared-ui'
-import { VideoBackground } from './hero/VideoBackground'
-// import { HeroStats } from './hero/HeroStats'
-import { HERO_VIDEOS } from '@/lib/constants'
+import { HeroBackground } from './hero/HeroBackground'
+import { HERO_IMAGES } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/apiClient'
 import { usePageContent } from '@/hooks/usePageContent'
@@ -21,8 +20,14 @@ interface HeroContent {
     videos?: { url: string }[];
 }
 
+// The old stock clips in /assets/videos were removed from the site; ignore them if the
+// Home page content still lists them, so the hero falls back to the real site photos.
+function isUsableHeroMedia(url: string): boolean {
+    return Boolean(url) && !url.startsWith('/assets/videos/')
+}
+
 export default function Hero() {
-    const [currentVideo, setCurrentVideo] = useState(0)
+    const sectionRef = useRef<HTMLElement>(null)
 
     const { data: settings } = useQuery<SiteSettings>({
         queryKey: ['settings'],
@@ -33,21 +38,17 @@ export default function Hero() {
     const { data: homeContent } = usePageContent<{ hero?: HeroContent }>('home')
     const heroApi = homeContent?.hero
 
-    const videos = heroApi?.videos?.length
-        ? heroApi.videos.map(v => v.url)
-        : HERO_VIDEOS
+    const cmsMedia = (heroApi?.videos ?? [])
+        .map(v => (typeof v?.url === 'string' ? v.url.trim() : ''))
+        .filter(isUsableHeroMedia)
+    const heroMedia = cmsMedia.length ? cmsMedia : HERO_IMAGES
 
-    useEffect(() => {
-        const timer = setInterval(() => {
-            setCurrentVideo((prev) => (prev + 1) % videos.length)
-        }, 6000)
-        return () => clearInterval(timer)
-    }, [videos.length])
+    // Scrolls to whatever section follows the hero (sections below hide themselves when empty).
+    const scrollPastHero = () =>
+        sectionRef.current?.nextElementSibling?.scrollIntoView({ behavior: 'smooth' })
 
-    const scrollTo = (selector: string) =>
-        document.querySelector(selector)?.scrollIntoView({ behavior: 'smooth' })
-
-    const heroBadge = heroApi?.badge || settings?.heroBadge || '20 Years of Construction Excellence'
+    // No hard-coded claim here: the badge only shows when it is set in Page Content or Site Settings.
+    const heroBadge = heroApi?.badge || settings?.heroBadge || ''
     const heroSubtitle = heroApi?.subtitle || settings?.heroSubtitle || 'Fortune Construction Limited delivers world-class civil engineering across Malawi, building the bedrock of national progress.'
 
     const heroTitleRaw = heroApi?.title || settings?.heroTitle || 'Crafting Visionary Infrastructure.'
@@ -56,9 +57,10 @@ export default function Hero() {
     return (
         <section
             id="hero"
+            ref={sectionRef}
             className="relative w-full min-h-screen flex items-center justify-center overflow-hidden bg-navy-900"
         >
-            <VideoBackground currentIndex={currentVideo} videos={videos} />
+            <HeroBackground key={heroMedia.join('|')} sources={heroMedia} />
 
             {/* Gradient overlay */}
             <div className="absolute inset-0 z-10 bg-gradient-to-b from-navy-900/85 via-navy-800/60 to-navy-900/90" />
@@ -74,20 +76,22 @@ export default function Hero() {
 
             {/* Content */}
             <div className="relative z-20 max-w-6xl mx-auto px-6 text-center">
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="mb-10"
-                >
-                    <Badge variant="teal" className="gap-3 border border-teal-300/60 bg-slate-950/75 px-5 py-2.5 text-teal-50 shadow-lg shadow-slate-950/30 backdrop-blur-md">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
-                        </span>
-                        {heroBadge}
-                    </Badge>
-                </motion.div>
+                {heroBadge && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8 }}
+                        className="mb-10"
+                    >
+                        <Badge variant="teal" className="gap-3 border border-teal-300/60 bg-slate-950/75 px-5 py-2.5 text-teal-50 shadow-lg shadow-slate-950/30 backdrop-blur-md">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+                            </span>
+                            {heroBadge}
+                        </Badge>
+                    </motion.div>
+                )}
 
                 <motion.h1 
                     initial={{ opacity: 0, y: 20 }}
@@ -141,13 +145,11 @@ export default function Hero() {
                         </Button>
                     </Link>
                 </motion.div>
-
-                {/* <HeroStats /> */}
             </div>
 
             {/* Scroll indicator */}
             <button
-                onClick={() => scrollTo('#impact')}
+                onClick={scrollPastHero}
                 className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 text-white/40 hover:text-teal-400 transition-colors animate-bounce"
                 aria-label="Scroll down"
             >

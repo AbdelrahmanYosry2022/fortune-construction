@@ -36,7 +36,7 @@ export interface SocialPreviewProfile {
     type: 'website'
 }
 
-const PRODUCTION_SITE_URL = 'https://fortuneconstruction.mw'
+const PRODUCTION_SITE_URL = 'https://fortuneconstruction.net'
 
 function normalizeBaseUrl(value?: string): string {
     const candidate = (value || '').trim().replace(/\/+$/, '')
@@ -107,14 +107,14 @@ export const seoProfiles: Record<Exclude<SeoRouteKey, 'projectDetail'>, SeoProfi
     },
     about: {
         key: 'about',
-        title: 'About Fortune Construction | Building Malawi Since 2006',
-        description: "Learn about Fortune Construction's engineering heritage, safety culture, leadership, and infrastructure work across Malawi.",
+        title: 'About Fortune Construction | Building Malawi',
+        description: "Learn about Fortune Construction's engineering heritage, safety culture, and infrastructure work across Malawi.",
         canonicalPath: '/about',
         indexable: true,
         imagePath: defaultImage,
         social: socialPreview(
-            'About Fortune Construction | Building Malawi Since 2006',
-            "Meet the team and values behind Fortune Construction's infrastructure work across Malawi.",
+            'About Fortune Construction | Building Malawi',
+            "Learn about the values behind Fortune Construction's infrastructure work across Malawi.",
         ),
     },
     projects: {
@@ -144,13 +144,13 @@ export const seoProfiles: Record<Exclude<SeoRouteKey, 'projectDetail'>, SeoProfi
     hse: {
         key: 'hse',
         title: 'Health, Safety & Quality | Fortune Construction',
-        description: "See how Fortune Construction manages health, safety, environment, quality assurance, and certifications across construction projects.",
+        description: "See how Fortune Construction manages health, safety, environment, and quality assurance across construction projects.",
         canonicalPath: '/hse',
         indexable: true,
         imagePath: defaultImage,
         social: socialPreview(
             'Health, Safety & Quality | Fortune Construction',
-            "See Fortune Construction's safety, quality, environment, and certification standards.",
+            "See Fortune Construction's safety, quality, and environment standards.",
         ),
     },
     careers: {
@@ -229,6 +229,14 @@ export function projectSeoProfile(project?: ProjectRecord, id?: string): SeoProf
     }
 }
 
+// Phone and email are only published when they are actually set (no placeholders).
+function contactPoints(phone?: string, email?: string): { telephone?: string; email?: string } {
+    const points: { telephone?: string; email?: string } = {}
+    if (phone?.trim()) points.telephone = phone.trim()
+    if (email?.trim()) points.email = email.trim()
+    return points
+}
+
 function businessPostalAddress(): StructuredDataItem {
     return {
         '@context': 'https://schema.org',
@@ -247,8 +255,7 @@ function baseBusinessStructuredData(): StructuredDataItem {
         url: buildCanonicalUrl('/'),
         logo: absoluteSeoImage(defaultImage),
         description: SITE.tagline,
-        email: SITE.email,
-        telephone: SITE.phone,
+        ...contactPoints(SITE.phone, SITE.email),
         address: businessPostalAddress(),
         foundingDate: String(SITE.foundedYear),
         areaServed: 'Malawi',
@@ -267,8 +274,7 @@ export function contactStructuredData(contact?: Partial<{ phone: string; email: 
     return [
         {
             ...baseBusinessStructuredData(),
-            telephone: phone,
-            email,
+            ...contactPoints(phone, email),
             address: {
                 ...businessPostalAddress(),
                 streetAddress: address,
@@ -283,8 +289,7 @@ export function contactStructuredData(contact?: Partial<{ phone: string; email: 
                 '@context': 'https://schema.org',
                 '@type': 'Organization',
                 name: SITE.name,
-                telephone: phone,
-                email,
+                ...contactPoints(phone, email),
                 address: {
                     ...businessPostalAddress(),
                     streetAddress: address,

@@ -1,13 +1,11 @@
 import { useMemo, useState } from 'react'
 import { PageHero } from '@fortune/shared-ui'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Route, ShieldCheck, Users } from 'lucide-react'
 import { apiFetch } from '@/lib/apiClient'
-import { fallbackProjects, normalizeProject, RawProject } from '@/lib/projectPresentation'
+import { normalizeProject, RawProject } from '@/lib/projectPresentation'
 import { MalawiProjectMap } from '@/components/projects/MalawiProjectMap'
 import { ProjectPortfolioFilters } from '@/components/projects/ProjectPortfolioFilters'
 import { ProjectPortfolioGrid } from '@/components/projects/ProjectPortfolioGrid'
-import { ProjectPortfolioStats, PortfolioStat } from '@/components/projects/ProjectPortfolioStats'
 import {
     DEFAULT_CATEGORY_OPTIONS,
     ProjectCategoryFilter,
@@ -37,7 +35,7 @@ export default function ProjectsPage() {
     })
 
     const projects = useMemo(
-        () => (apiProjects?.length ? apiProjects.map(normalizeProject) : fallbackProjects),
+        () => (apiProjects ?? []).map(normalizeProject),
         [apiProjects],
     )
 
@@ -79,37 +77,7 @@ export default function ProjectsPage() {
         [category, projects, searchQuery, status],
     )
 
-    const portfolioStats: PortfolioStat[] = [
-        {
-            icon: CheckCircle2,
-            value: '120+',
-            label: 'Completed Projects',
-            sublabel: 'Across Malawi',
-            supportingText: '',
-        },
-        {
-            icon: Route,
-            value: '850',
-            unit: 'km',
-            label: 'Roads Constructed',
-            sublabel: 'Paved & Upgraded',
-            supportingText: '',
-        },
-        {
-            icon: ShieldCheck,
-            value: '20+',
-            label: 'Years Experience',
-            sublabel: "Engineering Malawi's Growth",
-            supportingText: '',
-        },
-        {
-            icon: Users,
-            value: '450+',
-            label: 'Employees',
-            sublabel: 'Skilled. Trained. Committed.',
-            supportingText: '',
-        },
-    ]
+    // No hard-coded portfolio statistics: figures are only shown once verified ones come from the CMS.
 
     const projectsUnavailable = projectsHasError && isNetworkUnavailableError(projectsError)
     const categoriesUnavailable = categoriesHasError && isNetworkUnavailableError(categoriesError)
@@ -120,11 +88,9 @@ export default function ProjectsPage() {
             <PageHero
                 title="Project Portfolio"
                 description="A premium view of Fortune Construction's infrastructure, building, and civil works across Malawi."
-                imageSrc="https://images.unsplash.com/photo-1545558014-8ab6aa17e307?q=80&w=2200&auto=format&fit=crop&fm=webp"
-                imageAlt="Large construction project site"
+                imageSrc="/assets/images/site/lunzu-01.webp"
+                imageAlt="Aerial view of Fortune Construction buildings at Lunzu"
             />
-
-            <ProjectPortfolioStats stats={portfolioStats} />
 
             <section className="bg-slate-50 px-6 pb-20 pt-10 dark:bg-slate-950 md:pb-28">
                 <div className="mx-auto mb-8 flex max-w-[1800px] flex-col justify-between gap-6 border-b border-slate-200 pb-8 dark:border-slate-800 lg:flex-row lg:items-end">
@@ -147,7 +113,7 @@ export default function ProjectsPage() {
                                 error={projectsUnavailable ? projectsError : categoriesError}
                                 message={
                                     projectsUnavailable
-                                        ? 'Live project data is temporarily unavailable. Showing saved portfolio content until the service responds.'
+                                        ? 'Live project data is temporarily unavailable. Please try again shortly.'
                                         : 'Project category filters are temporarily unavailable. Showing default filters until the service responds.'
                                 }
                                 onRetry={() => {
@@ -174,7 +140,17 @@ export default function ProjectsPage() {
                         />
 
                         <div className="mt-12 md:mt-16">
-                            <ProjectPortfolioGrid isLoading={isLoading} projects={filteredProjects} />
+                            {!isLoading && !projects.length ? (
+                                !projectsUnavailable && (
+                                    <div className="border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
+                                        <p className="text-base leading-8 text-slate-500 dark:text-slate-400">
+                                            Our project portfolio is being updated.
+                                        </p>
+                                    </div>
+                                )
+                            ) : (
+                                <ProjectPortfolioGrid isLoading={isLoading} projects={filteredProjects} />
+                            )}
                         </div>
                     </main>
 

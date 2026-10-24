@@ -144,8 +144,9 @@ export const jobSchema = z.object({
 export const settingsSchema = z.object({
   companyName: requiredString('Company name is required'),
   tagline: z.string().optional(),
-  phone,
-  email,
+  // Optional: the public site hides phone and email when they are left empty.
+  phone: phone.optional().or(z.literal('')),
+  email: email.optional().or(z.literal('')),
   address: requiredString('Address is required'),
   foundedYear: z.coerce.number().min(1800).max(new Date().getFullYear()),
   heroTitle: requiredString('Hero title is required'),

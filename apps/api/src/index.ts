@@ -24,6 +24,7 @@ import statsRoutes from './routes/stats';
 import pageContentRoutes from './routes/pageContent';
 import successStoryRoutes from './routes/successStories';
 import projectCategoryRoutes from './routes/projectCategories';
+import sitemapRoutes from './routes/sitemap';
 
 dotenv.config();
 
@@ -64,6 +65,9 @@ export function createApp(
       if (filePath.split(path.sep).includes('cvs')) res.setHeader('Cache-Control', 'private, no-store');
     },
   }));
+
+  // The sitemap is one cheap query; crawlers fetch it via the public site (nginx proxy).
+  app.use('/sitemap.xml', sitemapRoutes);
 
   app.use(createApiLimiter());
   app.use('/api/auth/login', createLoginLimiter());

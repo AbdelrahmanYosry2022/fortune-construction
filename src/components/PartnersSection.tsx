@@ -5,15 +5,6 @@ import { apiFetch } from '@/lib/apiClient'
 
 interface ApiPartner { _id: string; name: string; abbr?: string; logo?: string; website?: string; description?: string; order: number }
 
-const FALLBACK_PARTNERS = [
-    { name: 'Ministry of Works', type: 'Government', logo: 'https://ui-avatars.com/api/?name=MoW&background=06162d&color=fff&size=128' },
-    { name: 'Malawi Telecom', type: 'Corporate', logo: 'https://ui-avatars.com/api/?name=MTL&background=00c3b6&color=fff&size=128' },
-    { name: 'National Bank', type: 'Corporate', logo: 'https://ui-avatars.com/api/?name=NB&background=06162d&color=fff&size=128' },
-    { name: 'UN Development', type: 'International NGOs', logo: 'https://ui-avatars.com/api/?name=UNDP&background=00c3b6&color=fff&size=128' },
-    { name: 'Roads Authority', type: 'Government', logo: 'https://ui-avatars.com/api/?name=RA&background=06162d&color=fff&size=128' },
-    { name: 'Water Board', type: 'Government', logo: 'https://ui-avatars.com/api/?name=WB&background=00c3b6&color=fff&size=128' },
-]
-
 interface PartnersSectionProps {
     variant?: 'simple' | 'detailed'
 }
@@ -25,13 +16,14 @@ export default function PartnersSection({ variant = 'simple' }: PartnersSectionP
         staleTime: 60_000,
     })
 
-    const partners = apiPartners?.length
-        ? apiPartners.map(p => ({
-            name: p.name,
-            type: '',
-            logo: p.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.abbr || p.name)}&background=06162d&color=fff&size=128`,
-        }))
-        : FALLBACK_PARTNERS
+    // Only real partners from the API are shown; hide the section when there are none.
+    const partners = (apiPartners ?? []).map(p => ({
+        name: p.name,
+        type: '',
+        logo: p.logo || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.abbr || p.name)}&background=06162d&color=fff&size=128`,
+    }))
+
+    if (partners.length === 0) return null
 
     if (variant === 'simple') {
         return (

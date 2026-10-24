@@ -124,13 +124,13 @@ export default function Settings() {
                 <div className="absolute left-4 top-[38px] z-10 text-slate-400">
                   <Phone className="w-4 h-4" />
                 </div>
-                <div className="[&_input]:pl-11"><FormInput name="phone" label="Phone Number" placeholder="+265 123 456 789" /></div>
+                <div className="[&_input]:pl-11"><FormInput name="phone" label="Phone Number (optional, hidden on the website if empty)" placeholder="+265 123 456 789" /></div>
               </div>
               <div className="relative">
                 <div className="absolute left-4 top-[38px] z-10 text-slate-400">
                   <Mail className="w-4 h-4" />
                 </div>
-                <div className="[&_input]:pl-11"><FormInput name="email" label="Email Address" type="email" placeholder="info@fortune.com" /></div>
+                <div className="[&_input]:pl-11"><FormInput name="email" label="Email Address (optional, hidden on the website if empty)" type="email" placeholder="info@fortune.com" /></div>
               </div>
               <div className="md:col-span-2 relative">
                 <div className="absolute left-4 top-[38px] z-10 text-slate-400">

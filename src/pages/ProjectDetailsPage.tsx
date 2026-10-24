@@ -19,7 +19,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/apiClient'
-import { fallbackProjects, normalizeProject, ProjectRecord, RawProject } from '@/lib/projectPresentation'
+import { normalizeProject, RawProject } from '@/lib/projectPresentation'
 import { SeoHead } from '@/components/SeoHead'
 import { projectSeoProfile, seoProfiles } from '@/lib/seo'
 import { DataUnavailableState } from '@/components/errors/DataUnavailableState'
@@ -83,27 +83,21 @@ function ChallengePanel({ title, body, icon: Icon, dark = false }: { title: stri
     )
 }
 
-function resolveLocalProject(id?: string): ProjectRecord | undefined {
-    if (!id) return undefined
-    return fallbackProjects.find((project) => project._id === id)
-}
-
 export default function ProjectDetailsPage() {
     const { id } = useParams<{ id: string }>()
     const [isOpen, setIsOpen] = useState(false)
     const [photoIndex, setPhotoIndex] = useState(0)
 
-    const localProject = resolveLocalProject(id)
     const { data: apiProject, error, isLoading, isError, refetch } = useQuery<RawProject>({
         queryKey: ['project', id],
         queryFn: () => apiFetch<RawProject>(`/projects/${id}`),
-        enabled: !!id && !localProject,
+        enabled: !!id,
         retry: false,
     })
 
     const project = useMemo(
-        () => (apiProject ? normalizeProject(apiProject) : localProject),
-        [apiProject, localProject],
+        () => (apiProject ? normalizeProject(apiProject) : undefined),
+        [apiProject],
     )
 
     if (isLoading) return (

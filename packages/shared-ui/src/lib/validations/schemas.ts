@@ -127,8 +127,9 @@ export const successStorySchema = z.object({
 export const settingsSchema = z.object({
   companyName: baseSchemas.requiredString('Company name is required'),
   tagline: z.string().optional(),
-  phone: baseSchemas.phone,
-  email: baseSchemas.email,
+  // Optional: the public site hides phone and email when they are left empty.
+  phone: baseSchemas.phone.optional().or(z.literal('')),
+  email: baseSchemas.email.optional().or(z.literal('')),
   address: baseSchemas.requiredString('Address is required'),
   foundedYear: z.coerce.number().min(1800).max(new Date().getFullYear()),
   heroTitle: baseSchemas.requiredString('Hero title is required'),
