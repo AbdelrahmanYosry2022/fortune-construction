@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import ProjectCategory from '../models/ProjectCategory';
-import Project from '../models/Project';
+import Project, { INCLUDE_DELETED_PROJECTS } from '../models/Project';
 import { protect } from '../middleware/auth';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { ApiError } from '../middleware/errors';
@@ -105,7 +105,8 @@ router.put('/:id', protect, validateRequest({ params: idParamSchema, body: proje
     return;
   }
   if (category && update.name && update.name !== existing.name) {
-    await Project.updateMany({ category: existing.name }, { $set: { category: update.name } });
+    // Trashed projects are renamed too, so restoring one keeps a category that exists.
+    await Project.updateMany({ category: existing.name }, { $set: { category: update.name } }, INCLUDE_DELETED_PROJECTS);
   }
   res.json(category);
 }));
@@ -117,7 +118,9 @@ router.delete('/:id', protect, validateRequest({ params: idParamSchema }), async
     return;
   }
 
-  const usedByProjects = await Project.countDocuments({ category: category.name });
+  // Projects in the trash still count: a category used only by a trashed project is disabled,
+  // not deleted, so the project keeps a valid category if it is restored.
+  const usedByProjects = await Project.countDocuments({ category: category.name }, INCLUDE_DELETED_PROJECTS);
   if (usedByProjects > 0) {
     category.isActive = false;
     await category.save();

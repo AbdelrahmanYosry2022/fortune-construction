@@ -206,13 +206,18 @@ test('jobs, settings, and page content dashboard writes are reflected in public 
     }),
     replaceStatic(PageContent, 'find', async (filter: Record<string, unknown>) => contentRows.filter((row) => matchesFilter(row, filter))),
     replaceStatic(PageContent, 'findOne', async (filter: Record<string, unknown>) => contentRows.find((row) => matchesFilter(row, filter)) || null),
-    replaceStatic(PageContent, 'findOneAndUpdate', async (filter: Record<string, unknown>, body: { content?: Record<string, unknown> }) => {
+    // PUT merges: each top-level key arrives as $set 'content.<key>', keys not sent are kept.
+    replaceStatic(PageContent, 'findOneAndUpdate', async (filter: Record<string, unknown>, update: { $set?: Record<string, unknown> }) => {
       let row = contentRows.find((item) => matchesFilter(item, filter));
       if (!row) {
         row = { _id: nextId('445', contentRows.length + 1), ...filter, content: {} };
         contentRows.push(row);
       }
-      row.content = body.content || {};
+      const content = { ...(row.content as Record<string, unknown>) };
+      for (const [path, value] of Object.entries(update.$set ?? {})) {
+        if (path.startsWith('content.')) content[path.slice('content.'.length)] = value;
+      }
+      row.content = content;
       return row;
     }),
   ];
@@ -235,6 +240,13 @@ test('jobs, settings, and page content dashboard writes are reflected in public 
     const pageContent = await readJson<Record<string, unknown>>(await fetch(`${server.baseUrl}/api/content/home`));
     assert.deepEqual(pageContent.hero, { title: 'Built for Malawi' });
     assert.deepEqual(await readJson(await fetch(`${server.baseUrl}/api/content/home/hero`)), { title: 'Built for Malawi' });
+
+    // A save that sends only some keys keeps the others.
+    await jsonRequest(server.baseUrl, '/api/content/home/hero', 'PUT', { subtitle: 'Since 2005' }, authHeader());
+    assert.deepEqual(
+      await readJson(await fetch(`${server.baseUrl}/api/content/home/hero`)),
+      { title: 'Built for Malawi', subtitle: 'Since 2005' }
+    );
   } finally {
     await server.close();
     restoreAll(restores);

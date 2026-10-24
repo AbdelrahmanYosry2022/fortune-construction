@@ -120,7 +120,12 @@ export class E2EApiClient {
   }
 
   async deleteProject(id: string): Promise<void> {
+    // DELETE only moves a project to the trash; test projects are then removed for good.
     await fetch(`${this.baseUrl}/api/projects/${id}`, {
+      method: 'DELETE',
+      headers: this.authHeaders(),
+    });
+    await fetch(`${this.baseUrl}/api/projects/${id}/permanent`, {
       method: 'DELETE',
       headers: this.authHeaders(),
     });
@@ -286,7 +291,19 @@ export class CleanupManager {
     this.messageIds = [];
 
     for (const item of this.restoredPageContents) {
-      try { await this.client.updatePageContent(item.page, item.section, item.content); } catch (_) {}
+      try {
+        // PUT merges into the section, so keys the test added are cleared explicitly
+        // (null makes the site fall back to its default text).
+        const current = await this.client.getPageContent(item.page, item.section);
+        const cleared: Record<string, unknown> = {};
+        if (current && typeof current === 'object') {
+          for (const key of Object.keys(current)) cleared[key] = null;
+        }
+        await this.client.updatePageContent(item.page, item.section, {
+          ...cleared,
+          ...((item.content ?? {}) as Record<string, unknown>),
+        });
+      } catch (_) {}
     }
     this.restoredPageContents = [];
   }

@@ -119,3 +119,48 @@ export function parseProjectCreatePayload(body: unknown) {
 export function parseProjectUpdatePayload(body: unknown) {
   return normalizePayload(baseProjectPayloadSchema.parse(body));
 }
+
+// Gallery images are either files served by this site (/uploads/images/...) or absolute
+// http(s) links (e.g. the seeded Unsplash photos). Anything else (javascript:, data:, //host,
+// relative paths, spaces, control characters) is rejected.
+const MAX_GALLERY_IMAGE_URL_LENGTH = 2048;
+export const MAX_GALLERY_IMAGES_PER_REQUEST = 50;
+
+function isGalleryImageUrl(value: string): boolean {
+  if (/[\s\\\u0000-\u001f\u007f]/.test(value)) return false;
+  if (value.startsWith('/')) return !value.startsWith('//');
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export const projectGalleryImageUrlSchema = z
+  .string({ required_error: 'Image URL is required', invalid_type_error: 'Image URL must be a string' })
+  .trim()
+  .min(1, 'Image URL is required')
+  .max(MAX_GALLERY_IMAGE_URL_LENGTH, 'Image URL is too long')
+  .refine(isGalleryImageUrl, 'Image URL must be an http(s) link or a path starting with /');
+
+// POST /api/projects/:id/gallery
+export const projectGalleryAddSchema = z.object({
+  urls: z
+    .array(projectGalleryImageUrlSchema, {
+      required_error: 'urls is required',
+      invalid_type_error: 'urls must be a list of image URLs',
+    })
+    .min(1, 'Add at least one image')
+    .max(MAX_GALLERY_IMAGES_PER_REQUEST, `Add at most ${MAX_GALLERY_IMAGES_PER_REQUEST} images at a time`)
+    .transform((urls) => [...new Set(urls)]),
+});
+
+// DELETE /api/projects/:id/gallery: matched exactly against the stored value and not checked
+// against the URL rules above, so an old malformed entry can still be removed.
+export const projectGalleryRemoveSchema = z.object({
+  url: z
+    .string({ required_error: 'url is required', invalid_type_error: 'url must be a string' })
+    .min(1, 'url is required')
+    .max(MAX_GALLERY_IMAGE_URL_LENGTH, 'Image URL is too long'),
+});

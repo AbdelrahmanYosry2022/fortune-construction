@@ -1,4 +1,8 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, MongooseBaseQueryOptions, Query, Schema } from 'mongoose';
+
+// A deleted project stays in the trash for 30 days (it can be restored), then MongoDB's TTL
+// monitor removes it. TTL ignores null and missing values, so live projects are never touched.
+export const PROJECT_TRASH_RETENTION_SECONDS = 30 * 24 * 60 * 60;
 
 export interface IProject extends Document {
   title: string;
@@ -24,6 +28,7 @@ export interface IProject extends Document {
     lat?: number;
     lng?: number;
   };
+  deletedAt: Date | null;
   createdAt: Date;
 }
 
@@ -51,6 +56,40 @@ const ProjectSchema = new Schema<IProject>({
     lat: { type: Number },
     lng: { type: Number },
   },
+  // Set when the project is moved to the trash; null while the project is live.
+  deletedAt: { type: Date, default: null },
 }, { timestamps: true });
+
+// Also the index for deletedAt queries (a second plain index on the same key would conflict).
+ProjectSchema.index({ deletedAt: 1 }, { expireAfterSeconds: PROJECT_TRASH_RETENTION_SECONDS });
+
+// Trashed projects are hidden from every read and update by default, so the public site, the
+// dashboard list, stats and the sitemap never show them and PUT /:id cannot edit or revive one.
+// Pass the query option `includeDeleted: true` to see them; a filter that names deletedAt
+// explicitly is left as written. `{ deletedAt: null }` also matches documents without the field.
+const EXCLUDE_DELETED_QUERIES = [
+  'find',
+  'findOne',
+  'findOneAndUpdate',
+  'findOneAndReplace',
+  'countDocuments',
+  'distinct',
+  'updateOne',
+  'updateMany',
+  'replaceOne',
+] as const;
+
+function excludeDeletedProjects(this: Query<unknown, IProject>): void {
+  const options = this.getOptions() as { includeDeleted?: boolean };
+  if (options.includeDeleted) return;
+  if (Object.prototype.hasOwnProperty.call(this.getFilter(), 'deletedAt')) return;
+  this.where({ deletedAt: null });
+}
+
+ProjectSchema.pre([...EXCLUDE_DELETED_QUERIES], excludeDeletedProjects);
+
+// Query options for the few places that must see trashed projects as well, e.g.
+// Project.countDocuments(filter, INCLUDE_DELETED_PROJECTS).
+export const INCLUDE_DELETED_PROJECTS: MongooseBaseQueryOptions = { includeDeleted: true };
 
 export default mongoose.model<IProject>('Project', ProjectSchema);
