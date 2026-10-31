@@ -34,6 +34,11 @@ interface ProjectCategory {
   isActive: boolean;
 }
 
+// POST and DELETE /projects/:id/gallery answer with the project's whole stored gallery.
+interface ProjectGalleryResponse {
+  galleryImages: string[];
+}
+
 // A few uploads at a time: fast enough, and one failed photo no longer cancels the whole batch.
 const GALLERY_UPLOAD_CONCURRENCY = 3
 
@@ -201,6 +206,14 @@ function cleanProjectPayload(data: ProjectFormData) {
   }
 }
 
+// An existing project's photos are saved on their own through /projects/:id/gallery, so an
+// update never sends galleryImages: the list in a form opened earlier would replace the stored
+// one and drop photos added since (in another tab, by someone else, or by another dashboard).
+function cleanProjectUpdatePayload(data: ProjectFormData) {
+  const { galleryImages: _savedSeparately, ...payload } = cleanProjectPayload(data)
+  return payload
+}
+
 export default function Projects() {
   const qc = useQueryClient()
   const [modalOpen, setModalOpen] = useState(false)
@@ -208,11 +221,23 @@ export default function Projects() {
   const [trashTarget, setTrashTarget] = useState<{ id: string; title: string } | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadingGallery, setUploadingGallery] = useState(false)
-  const [galleryProgress, setGalleryProgress] = useState({ done: 0, total: 0 })
+  const [removingImages, setRemovingImages] = useState<string[]>([])
+  // Removing a photo from a saved project takes effect at once, so it asks first, on the photo itself.
+  const [confirmingRemoval, setConfirmingRemoval] = useState<string | null>(null)
   // Bumped whenever the form is opened for another project, so a slow upload
   // never writes its URLs into a different project's form.
   const formSessionRef = useRef(0)
+  const [formSession, setFormSession] = useState(0)
+  // A photo batch can keep running after its form is closed. Its progress (and the Save block)
+  // belongs to the form that started it, not to whichever form is open now.
+  const [galleryUpload, setGalleryUpload] = useState<{ session: number; done: number; total: number } | null>(null)
+  const uploadingGallery = galleryUpload !== null && galleryUpload.session === formSession
+  // The project the form currently shows (null for a new one). Saved gallery changes are only
+  // shown while the form still shows the project they were made on.
+  const formProjectIdRef = useRef<string | null>(null)
+  // Gallery requests go out one at a time, so a response (the project's whole list at that
+  // moment) is never overtaken by an older one and the form never shows a stale list.
+  const galleryQueueRef = useRef<Promise<unknown>>(Promise.resolve())
   const isUploading = uploading || uploadingGallery
 
   const form = useFormSchema({
@@ -249,7 +274,7 @@ export default function Projects() {
 
   const save = useMutation({
     mutationFn: (data: ProjectFormData) =>
-      editingId ? api.put(`/projects/${editingId}`, cleanProjectPayload(data)) : api.post('/projects', cleanProjectPayload(data)),
+      editingId ? api.put(`/projects/${editingId}`, cleanProjectUpdatePayload(data)) : api.post('/projects', cleanProjectPayload(data)),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       toast.success('Project saved successfully!')
@@ -272,6 +297,9 @@ export default function Projects() {
 
   const openAdd = () => {
     formSessionRef.current += 1
+    setFormSession(formSessionRef.current)
+    formProjectIdRef.current = null
+    setConfirmingRemoval(null)
     setEditingId(null)
     form.reset({ ...EMPTY_FORM, category: categoryOptions[0]?.value || '' })
     setModalOpen(true)
@@ -279,9 +307,27 @@ export default function Projects() {
 
   const openEdit = (project: Project) => {
     formSessionRef.current += 1
+    setFormSession(formSessionRef.current)
+    formProjectIdRef.current = project._id
+    setConfirmingRemoval(null)
     setEditingId(project._id)
     form.reset(normalizeProjectForForm(project))
     setModalOpen(true)
+  }
+
+  const queueGalleryChange = (request: () => Promise<{ data: ProjectGalleryResponse }>) => {
+    const change = galleryQueueRef.current.then(request)
+    galleryQueueRef.current = change.catch(() => undefined)
+    return change.then((response) => response.data.galleryImages)
+  }
+
+  // The server's answer is the project's whole list. It goes into the cached project list at once
+  // (so reopening the project mid-batch starts from it) and into the form if it shows that project.
+  const showSavedGallery = (projectId: string, galleryImages: string[]) => {
+    qc.setQueryData<Project[]>(['projects'], (list) =>
+      list?.map((project) => (project._id === projectId ? { ...project, galleryImages } : project)),
+    )
+    if (formProjectIdRef.current === projectId) form.setValue('galleryImages', galleryImages)
   }
 
   const handleImageUpload = async (file: File | null) => {
@@ -302,11 +348,17 @@ export default function Projects() {
   const handleGalleryUpload = async (files: File[]) => {
     if (files.length === 0) return
     const session = formSessionRef.current
-    setUploadingGallery(true)
-    setGalleryProgress({ done: 0, total: files.length })
+    // Captured once, so every photo of this run lands on the project it was picked for, even if
+    // the form is closed or opened for another project before the uploads finish.
+    const projectId = editingId
+    // The end-of-batch message names the project, since another form may be open by then.
+    const projectTitle = String(form.getValues('title') || '').trim()
+    const target = projectTitle ? `“${projectTitle}”` : 'the project'
+    setGalleryUpload({ session, done: 0, total: files.length })
 
     const urls: Array<string | undefined> = new Array(files.length)
     const failures: string[] = []
+    let saved = 0
     let nextIndex = 0
     let done = 0
 
@@ -319,35 +371,76 @@ export default function Projects() {
         } catch (error) {
           failures.push(`${file.name}: ${getApiErrorMessage(error, 'upload failed')}`)
         }
+        const url = urls[index]
+        if (projectId && url) {
+          // An existing project gets each photo as soon as it is uploaded. Only this URL is sent,
+          // never the whole list, so photos added meanwhile somewhere else are kept.
+          try {
+            const galleryImages = await queueGalleryChange(() =>
+              api.post<ProjectGalleryResponse>(`/projects/${projectId}/gallery`, { urls: [url] }),
+            )
+            saved += 1
+            showSavedGallery(projectId, galleryImages)
+          } catch (error) {
+            failures.push(`${file.name} was uploaded but not added to the project: ${getApiErrorMessage(error, 'please try again')}`)
+          }
+        }
         done += 1
-        setGalleryProgress({ done, total: files.length })
+        const progress = done
+        setGalleryUpload((current) => (current?.session === session ? { ...current, done: progress } : current))
       }
     }
 
     try {
       await Promise.all(Array.from({ length: Math.min(GALLERY_UPLOAD_CONCURRENCY, files.length) }, uploadNext))
-      const uploaded = urls.filter((url): url is string => Boolean(url))
-      if (session !== formSessionRef.current) {
-        toast.error('The project form was closed before the photos finished uploading. Please add them again.', { duration: 10000 })
-        return
-      }
-      if (uploaded.length) {
-        const current = form.getValues('galleryImages') || []
-        form.setValue('galleryImages', [...current, ...uploaded])
+      let added = saved
+      if (projectId) {
+        if (saved) qc.invalidateQueries({ queryKey: ['projects'] })
+      } else {
+        // A new project keeps its photos in the form until it is created.
+        const uploaded = urls.filter((url): url is string => Boolean(url))
+        if (session !== formSessionRef.current) {
+          toast.error('The project form was closed before the photos finished uploading. Please add them again.', { duration: 10000 })
+          return
+        }
+        if (uploaded.length) {
+          const current = form.getValues('galleryImages') || []
+          form.setValue('galleryImages', [...current, ...uploaded])
+        }
+        added = uploaded.length
       }
       if (failures.length) {
-        toast.error(`${failures.length} of ${files.length} photos failed to upload. ${failures[0]}`, { duration: 10000 })
+        toast.error(`${failures.length} of ${files.length} photos could not be added${projectId ? ` to ${target}` : ''}. ${failures[0]}`, { duration: 10000 })
       } else {
-        toast.success(`${uploaded.length} photo${uploaded.length === 1 ? '' : 's'} uploaded`)
+        toast.success(`${added} photo${added === 1 ? '' : 's'} ${projectId ? `saved to ${target}` : 'uploaded'}`)
       }
     } finally {
-      setUploadingGallery(false)
+      setGalleryUpload((current) => (current?.session === session ? null : current))
     }
   }
 
-  const removeGalleryImage = (index: number) => {
-    const current = form.getValues('galleryImages') || []
-    form.setValue('galleryImages', current.filter((_, i) => i !== index))
+  const removeGalleryImage = async (url: string) => {
+    const projectId = editingId
+    if (!projectId) {
+      const current = form.getValues('galleryImages') || []
+      form.setValue('galleryImages', current.filter((image) => image !== url))
+      return
+    }
+
+    // An existing project loses the photo right away; the form follows the server's answer.
+    setRemovingImages((current) => [...current, url])
+    try {
+      const galleryImages = await queueGalleryChange(() =>
+        api.delete<ProjectGalleryResponse>(`/projects/${projectId}/gallery`, { data: { url } }),
+      )
+      showSavedGallery(projectId, galleryImages)
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      toast.success('Photo removed from the project')
+    } catch (error) {
+      toast.error(`Failed to remove photo: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 })
+    } finally {
+      setRemovingImages((current) => current.filter((image) => image !== url))
+    }
   }
 
   const watchedStartDate = form.watch('startDate')
@@ -528,20 +621,56 @@ export default function Projects() {
               {form.watch('coverImage') && (
                 <img src={form.watch('coverImage')} className="h-44 w-full rounded-2xl border border-slate-200 object-cover" alt="preview" />
               )}
+              <p className="pt-2 text-sm font-bold text-slate-700 dark:text-slate-200">Gallery</p>
+              <p className="text-xs font-medium text-slate-500">
+                {editingId
+                  ? 'Gallery photos are saved to the project as soon as they upload or are removed. The cover image and other fields are saved with Save Project.'
+                  : 'Gallery photos are saved with the project when you create it.'}
+              </p>
               <div className="grid grid-cols-3 gap-3">
-                {(form.watch('galleryImages') || []).map((img, idx) => (
-                  <div key={img} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200">
-                    <img src={img} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
-                    <button type="button" onClick={() => removeGalleryImage(idx)} className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
+                {(form.watch('galleryImages') || []).map((img, idx) => {
+                  const removing = removingImages.includes(img)
+                  return (
+                    <div key={img} className={`group relative aspect-square overflow-hidden rounded-xl border border-slate-200${removing ? ' opacity-50' : ''}`}>
+                      <img src={img} alt={`Gallery ${idx + 1}`} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => (editingId ? setConfirmingRemoval(img) : void removeGalleryImage(img))}
+                        disabled={removing}
+                        aria-label={`Remove photo ${idx + 1}`}
+                        className="absolute right-1 top-1 rounded-full bg-red-500 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        {removing ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                      </button>
+                      {confirmingRemoval === img && !removing && (
+                        <div role="alertdialog" aria-label={`Remove photo ${idx + 1} from the project?`} className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-900/80 p-2 text-center">
+                          <span className="text-[11px] font-bold leading-tight text-white">Remove from project?</span>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => { setConfirmingRemoval(null); void removeGalleryImage(img) }}
+                              className="rounded-lg bg-red-500 px-2 py-1 text-[11px] font-bold text-white hover:bg-red-600"
+                            >
+                              Remove
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingRemoval(null)}
+                              className="rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-slate-700 hover:bg-slate-100"
+                            >
+                              Keep
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
                 <div className="relative flex aspect-square flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400 transition-colors hover:border-teal-500">
                   {uploadingGallery ? (
                     <>
                       <Loader2 className="h-6 w-6 animate-spin text-teal-500" />
-                      <span className="mt-1 text-xs">{galleryProgress.done}/{galleryProgress.total}</span>
+                      <span className="mt-1 text-xs">{galleryUpload?.done ?? 0}/{galleryUpload?.total ?? 0}</span>
                     </>
                   ) : <><Plus className="mb-1 h-6 w-6" /><span className="text-xs">Add Photos</span></>}
                   <input

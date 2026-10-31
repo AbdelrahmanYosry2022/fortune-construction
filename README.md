@@ -52,7 +52,7 @@ src/
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v18+)
+- Node.js 20.19+ (CI and production use Node 20)
 - npm or yarn
 
 ### Installation
@@ -73,6 +73,9 @@ Generate a production-ready bundle:
 ```bash
 npm run build
 ```
+
+### CI
+Every pull request and every push to `main` runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml) on Node 20: API typecheck + tests, dashboard build, and public site typecheck + build.
 
 ---
 

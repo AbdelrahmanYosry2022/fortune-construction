@@ -240,3 +240,97 @@ test('gallery routes require an admin token', async () => {
 
   assert.deepEqual(await storedGallery(id), ['/uploads/images/a.jpg']);
 });
+
+// PUT /api/projects/:id and the gallery. The dashboard saves an existing project without
+// galleryImages and changes photos only through /:id/gallery, so a form opened earlier (another
+// tab, another admin, the coming dashboard) cannot drop photos added meanwhile. A PUT that does
+// carry galleryImages still replaces the whole stored list: legacy behaviour, kept for old clients.
+
+const THREE_PHOTOS = ['/uploads/images/one.jpg', '/uploads/images/two.jpg', '/uploads/images/three.jpg'];
+
+function updateProject(id: string, body: Row): Promise<Response> {
+  return jsonRequest(baseUrl(), `/api/projects/${id}`, 'PUT', body, authHeader());
+}
+
+async function createProjectThroughApi(body: Row): Promise<string> {
+  const response = await jsonRequest(baseUrl(), '/api/projects', 'POST', body, authHeader());
+  assert.equal(response.status, 201);
+  const created = await readJson<Row>(response);
+  return String(created._id);
+}
+
+test('PUT /api/projects/:id without galleryImages leaves the stored gallery exactly as it is', async () => {
+  // A new project still gets its photos from the create request.
+  const id = await createProjectThroughApi({
+    title: 'Mzuzu Road Upgrade',
+    category: 'Roads',
+    location: 'Mzuzu',
+    galleryImages: THREE_PHOTOS,
+  });
+  assert.deepEqual(await storedGallery(id), THREE_PHOTOS);
+
+  const titleOnly = await updateProject(id, { title: 'Mzuzu Road Upgrade, Phase 2' });
+  assert.equal(titleOnly.status, 200);
+  const updated = await readJson<Row>(titleOnly);
+  assert.equal(updated.title, 'Mzuzu Road Upgrade, Phase 2');
+  assert.deepEqual(updated.galleryImages, THREE_PHOTOS);
+  assert.deepEqual(await storedGallery(id), THREE_PHOTOS);
+
+  // The full body the dashboard sends when saving an existing project (no galleryImages key;
+  // empty fields come through as "" or are left out by JSON).
+  const fullForm = await updateProject(id, {
+    title: 'Mzuzu Road Upgrade, Phase 2',
+    category: 'Roads',
+    status: 'Completed',
+    location: 'Mzuzu',
+    clientName: '',
+    projectValue: 15000000,
+    duration: '',
+    overview: 'Resurfacing and drainage.',
+    scopeOfWork: ['Asphalt surfacing'],
+    technologies: [],
+    coverImage: '/uploads/images/cover.jpg',
+    challenge: '',
+    solution: '',
+    result: '',
+    galleryImages: undefined,
+    coordinates: {},
+  });
+  assert.equal(fullForm.status, 200);
+  assert.deepEqual((await readJson<Row>(fullForm)).galleryImages, THREE_PHOTOS);
+  assert.deepEqual(await storedGallery(id), THREE_PHOTOS);
+  const stored = await Project.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+  assert.equal(stored?.coverImage, '/uploads/images/cover.jpg');
+  assert.equal(stored?.status, 'Completed');
+});
+
+test('a photo added through POST /gallery survives a later PUT without galleryImages', async () => {
+  const id = await createProject({ galleryImages: THREE_PHOTOS, overview: 'Before' });
+
+  // Someone adds a photo while another form, opened before that, is still being edited.
+  const added = await addImages(id, { urls: ['/uploads/images/four.jpg'] });
+  assert.equal(added.status, 200);
+
+  const save = await updateProject(id, { title: 'Renamed from an old form', overview: 'After' });
+  assert.equal(save.status, 200);
+  assert.deepEqual((await readJson<Row>(save)).galleryImages, [...THREE_PHOTOS, '/uploads/images/four.jpg']);
+  assert.deepEqual(await storedGallery(id), [...THREE_PHOTOS, '/uploads/images/four.jpg']);
+
+  // A removal made through DELETE /gallery is not undone by the next save either.
+  assert.equal((await removeImage(id, { url: '/uploads/images/two.jpg' })).status, 200);
+  assert.equal((await updateProject(id, { overview: 'Saved again' })).status, 200);
+  assert.deepEqual(await storedGallery(id), ['/uploads/images/one.jpg', '/uploads/images/three.jpg', '/uploads/images/four.jpg']);
+});
+
+test('legacy: PUT /api/projects/:id with galleryImages still replaces the stored list', async () => {
+  const id = await createProject({ galleryImages: THREE_PHOTOS });
+
+  const replaced = await updateProject(id, { galleryImages: ['/uploads/images/two.jpg', '/uploads/images/new.jpg'] });
+  assert.equal(replaced.status, 200);
+  assert.deepEqual((await readJson<Row>(replaced)).galleryImages, ['/uploads/images/two.jpg', '/uploads/images/new.jpg']);
+  assert.deepEqual(await storedGallery(id), ['/uploads/images/two.jpg', '/uploads/images/new.jpg']);
+
+  // An explicit empty list still clears the gallery, as it always has.
+  assert.equal((await updateProject(id, { galleryImages: [] })).status, 200);
+  assert.deepEqual(await storedGallery(id), []);
+});

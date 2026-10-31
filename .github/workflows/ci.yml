@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same PR (or to main) cancels the run it supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# The three jobs run in parallel. Each one installs the workspaces with `npm ci`;
+# setup-node's npm cache keeps those installs fast. Node 20 matches production.
+jobs:
+  api:
+    name: API (typecheck + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # mongodb-memory-server fetches a mongod binary while `npm ci` runs. Download it to
+      # ~/.cache/mongodb-binaries (instead of node_modules/.cache, which `npm ci` wipes) so the
+      # cache below can keep it between runs. The tests read the same variable.
+      - name: Keep the MongoDB test binary outside node_modules
+        run: echo "MONGOMS_DOWNLOAD_DIR=$HOME/.cache/mongodb-binaries" >> "$GITHUB_ENV"
+
+      - name: Cache the MongoDB test binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            mongodb-binaries-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p apps/api
+
+      - name: Test
+        run: npm test --workspace=apps/api
+
+  dashboard:
+    name: Dashboard (build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # This job never starts MongoDB, so skip the mongod download during `npm ci`.
+      MONGOMS_DISABLE_POSTINSTALL: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (tsc + vite)
+        run: npm run build --workspace=apps/dashboard
+
+  site:
+    name: Public site (typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONGOMS_DISABLE_POSTINSTALL: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
