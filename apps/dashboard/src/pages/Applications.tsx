@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, resolveUploadUrl } from '../lib/api'
+import { api } from '../lib/api'
+import { downloadApplicationCv } from '../lib/cvDownload'
 import { DataUnavailableState } from '../components/errors/DataUnavailableState'
 import { getApiErrorMessage } from '../lib/errorHandling'
-import { Trash2, ChevronDown, Search, FileText } from 'lucide-react'
+import { Trash2, ChevronDown, Search, FileText, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { GlobalModal } from '@fortune/shared-ui'
 
@@ -21,6 +22,10 @@ export default function Applications() {
   const [filterStatus, setFilterStatus] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  // Every CV that is downloading right now; the ref stops a second click on the same row
+  // before React has re-rendered.
+  const [downloadingCvIds, setDownloadingCvIds] = useState<ReadonlySet<string>>(() => new Set())
+  const cvDownloadsInFlight = useRef(new Set<string>())
 
   const { data, isLoading, error, refetch } = useQuery<Application[]>({
     queryKey: ['applications', filterStatus],
@@ -42,6 +47,25 @@ export default function Applications() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['applications'] }); qc.invalidateQueries({ queryKey: ['stats'] }); toast.success('Deleted') },
     onError: (error) => toast.error(`Failed to delete application: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 }),
   })
+
+  const downloadCv = async (application: Application) => {
+    const id = application._id
+    if (cvDownloadsInFlight.current.has(id)) return
+    cvDownloadsInFlight.current.add(id)
+    setDownloadingCvIds((current) => new Set(current).add(id))
+    try {
+      await downloadApplicationCv(application)
+    } catch (error) {
+      toast.error(`Could not download the CV from ${application.fullName}: ${getApiErrorMessage(error, 'please try again')}`, { duration: 10000 })
+    } finally {
+      cvDownloadsInFlight.current.delete(id)
+      setDownloadingCvIds((current) => {
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
+    }
+  }
 
   const normalizedSearch = useMemo(() => search.trim().toLowerCase(), [search])
   const filtered = useMemo(() => {
@@ -150,14 +174,17 @@ export default function Applications() {
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2 justify-end">
                           {a.cvFile && (
-                            <a
-                              href={resolveUploadUrl(a.cvFile)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="h-8 px-3 flex items-center gap-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold uppercase tracking-wider transition-all"
+                            <button
+                              type="button"
+                              onClick={() => downloadCv(a)}
+                              aria-busy={downloadingCvIds.has(a._id)}
+                              aria-label={`Download the CV from ${a.fullName}`}
+                              className="h-8 px-3 flex items-center gap-2 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full text-xs font-bold uppercase tracking-wider transition-all aria-busy:opacity-60 aria-busy:cursor-wait"
                             >
-                              <FileText className="w-3.5 h-3.5 text-teal-500" /> CV
-                            </a>
+                              {downloadingCvIds.has(a._id)
+                                ? <Loader2 className="w-3.5 h-3.5 text-teal-500 animate-spin" />
+                                : <FileText className="w-3.5 h-3.5 text-teal-500" />} CV
+                            </button>
                           )}
                           <button
                             onClick={() => setExpanded(expanded === a._id ? null : a._id)}
