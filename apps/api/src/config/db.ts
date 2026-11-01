@@ -33,9 +33,11 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function connectDB(options: ConnectOptions = {}): Promise<DatabaseStatus> {
   const production = options.production ?? process.env.NODE_ENV === 'production';
-  const localUri = options.localUri ?? LOCAL_MONGO_URI;
+  const uri = process.env.MONGODB_URI?.trim();
+  // A MongoDB on this machine named in MONGODB_URI is the one to use (for example a separate
+  // test database). Only remote URIs used to be read, so a local one was silently ignored.
+  const localUri = options.localUri ?? (uri && !isRemoteMongoUri(uri) ? uri : LOCAL_MONGO_URI);
   const serverSelectionTimeoutMS = options.serverSelectionTimeoutMS ?? 3000;
-  const uri = process.env.MONGODB_URI;
 
   if (isRemoteMongoUri(uri)) {
     if (!allowsRemoteDatabase()) {
@@ -60,7 +62,8 @@ export async function connectDB(options: ConnectOptions = {}): Promise<DatabaseS
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         await mongoose.connect(localUri, { serverSelectionTimeoutMS });
-        safeLogger.info('MongoDB connected (local)');
+        // The database name goes into the pm2 log, so a wrong database shows at a glance.
+        safeLogger.info(`MongoDB connected (local, database "${mongoose.connection.name || 'unknown'}")`);
         return { mode: 'local', ready: true, isNewDatabase: false, isConnected };
       } catch (err) {
         lastReason = err instanceof Error ? err.message : String(err);
@@ -74,7 +77,7 @@ export async function connectDB(options: ConnectOptions = {}): Promise<DatabaseS
 
   try {
     await mongoose.connect(localUri, { serverSelectionTimeoutMS });
-    safeLogger.info('MongoDB connected (local)');
+    safeLogger.info(`MongoDB connected (local, database "${mongoose.connection.name || 'unknown'}")`);
     return { mode: 'local', ready: true, isNewDatabase: false, isConnected };
   } catch {
     // development only: fall through to a persistent file-backed in-memory database

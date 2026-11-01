@@ -1,5 +1,6 @@
 import './setup';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
@@ -59,6 +60,59 @@ test('production waits for MongoDB that starts a little after the API', async ()
     assert.equal(calls, 3);
   } finally {
     mongoose.connect = originalConnect;
+    process.env = originalEnv;
+  }
+});
+
+test('production uses the database MONGODB_URI names on this machine, not always the default one', async () => {
+  const originalEnv = { ...process.env };
+  const originalConnect = mongoose.connect;
+  const attemptedUris: string[] = [];
+  (mongoose.connect as unknown as (uri: string) => Promise<unknown>) = async (uri: string) => {
+    attemptedUris.push(uri);
+    return undefined;
+  };
+
+  try {
+    process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/separate-test-db';
+    await connectDB({ production: true, attempts: 1 });
+    // A URI naming the default database keeps using it.
+    process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/fortune-construction';
+    await connectDB({ production: true, attempts: 1 });
+    process.env.MONGODB_URI = '  ';
+    await connectDB({ production: true, attempts: 1 });
+    assert.deepEqual(attemptedUris, [
+      'mongodb://127.0.0.1:27017/separate-test-db',
+      'mongodb://127.0.0.1:27017/fortune-construction',
+      LOCAL_MONGO_URI,
+    ]);
+  } finally {
+    mongoose.connect = originalConnect;
+    process.env = originalEnv;
+  }
+});
+
+// In this workspace the MongoDB binary is cached next to the hoisted mongodb-memory-server
+// package; point the library there so the test does not download it again.
+function useInstalledMongoBinaryCache(): void {
+  if (process.env.MONGOMS_DOWNLOAD_DIR || process.env.MONGOMS_SYSTEM_BINARY) return;
+  const packageDir = path.dirname(require.resolve('mongodb-memory-server/package.json'));
+  const cacheDir = path.join(packageDir, '..', '.cache', 'mongodb-memory-server');
+  if (fs.existsSync(cacheDir)) process.env.MONGOMS_DOWNLOAD_DIR = cacheDir;
+}
+
+test('a real connection lands in the database MONGODB_URI names', async () => {
+  useInstalledMongoBinaryCache();
+  const originalEnv = { ...process.env };
+  const mongo = await MongoMemoryServer.create();
+  try {
+    process.env.MONGODB_URI = `${mongo.getUri()}separate-test-db`;
+    const status = await connectDB({ production: true, attempts: 1 });
+    assert.equal(status.mode, 'local');
+    assert.equal(mongoose.connection.name, 'separate-test-db');
+  } finally {
+    await mongoose.disconnect();
+    await mongo.stop();
     process.env = originalEnv;
   }
 });
