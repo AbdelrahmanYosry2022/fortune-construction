@@ -97,7 +97,9 @@ test('repeated failed logins are blocked', async () => {
   }
 });
 
-test('applicant CVs are served with no caching', async () => {
+// CVs are downloaded through GET /api/applications/:id/cv after login
+// (applications-cv-access.test.ts); the public uploads route refuses them and caches nothing.
+test('applicant CVs are not served by the public uploads route', async () => {
   const cvDir = path.join(__dirname, '..', 'uploads', 'cvs');
   fs.mkdirSync(cvDir, { recursive: true });
   const fileName = `rate-limit-test-${process.pid}.pdf`;
@@ -107,8 +109,9 @@ test('applicant CVs are served with no caching', async () => {
 
   try {
     const response = await fetch(`${server.baseUrl}/uploads/cvs/${fileName}`);
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await response.text()).includes('cv-bytes'), false);
   } finally {
     await server.close();
     fs.rmSync(filePath, { force: true });

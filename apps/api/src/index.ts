@@ -9,6 +9,7 @@ import { createCorsOptions } from './config/cors';
 import { errorHandler } from './middleware/errors';
 import { createApiLimiter, createLoginLimiter, createSubmissionLimiter, resolveTrustProxy } from './middleware/rateLimits';
 import { safeLogger } from './utils/safeLogger';
+import { isCvUploadRequest, PUBLIC_UPLOAD_FOLDERS, uploadsRoot } from './utils/cvFiles';
 
 import authRoutes from './routes/auth';
 import projectRoutes from './routes/projects';
@@ -55,16 +56,26 @@ export function createApp(
     next();
   });
 
+  // Applicant CVs are personal data: the public /uploads route never serves them, however the
+  // path is spelled. The dashboard downloads them through GET /api/applications/:id/cv instead.
+  app.use('/uploads', (req, res, next) => {
+    if (!isCvUploadRequest(req.path)) {
+      next();
+      return;
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(404).json({ message: 'Not found' });
+  });
+
   // Uploaded files are served before the rate limiter: viewing images must not use up
   // the request budget. Image/video names are unique, so browsers may cache them for a week.
-  // Applicant CVs are personal data and must not be cached.
-  app.use('/uploads', express.static(path.join(__dirname, '../uploads'), {
-    maxAge: '7d',
-    immutable: true,
-    setHeaders: (res, filePath) => {
-      if (filePath.split(path.sep).includes('cvs')) res.setHeader('Cache-Control', 'private, no-store');
-    },
-  }));
+  // Only these folders are public, so nothing else under uploads/ can be reached by any path.
+  for (const folder of PUBLIC_UPLOAD_FOLDERS) {
+    app.use(`/uploads/${folder}`, express.static(path.join(uploadsRoot, folder), {
+      maxAge: '7d',
+      immutable: true,
+    }));
+  }
 
   // The sitemap is one cheap query; crawlers fetch it via the public site (nginx proxy).
   app.use('/sitemap.xml', sitemapRoutes);
